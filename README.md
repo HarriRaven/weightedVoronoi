@@ -10,7 +10,8 @@ weights.
 
 ## Installation
 
-\`\`\`r \# install.packages(“remotes”)
+install.packages(“remotes”)
+
 remotes::install_github(“HarriRaven/weightedVoronoi”)
 
 library(sf) library(weightedVoronoi)
