@@ -244,6 +244,15 @@ remove_islands <- function(ID, points_sf, min_cells = 5, max_iter_fill = 50) {
 
 #---------------------------------------------------------------------------------#
 
+#' Weighted Euclidean tessellation (core)
+#'
+#' Internal/core function used by [weighted_voronoi_domain()] to compute a weighted
+#' Euclidean tessellation on a rasterised domain.
+#'
+#' @inheritParams weighted_voronoi_domain
+#' @return A list containing polygon output (if requested), allocation raster, and weights.
+#' @export
+
 weighted_voronoi <- function(points_sf,
                              weight_col,
                              boundary = NULL,        # sf POLYGON/MULTIPOLYGON (optional)
@@ -384,6 +393,15 @@ weighted_voronoi <- function(points_sf,
 }
 
 #--------------------------------------------------------------------------------#
+
+#' Weighted geodesic tessellation (core)
+#'
+#' Computes a weighted tessellation using domain-constrained (geodesic) distances.
+#' Distances are calculated as shortest-path distances through a rasterised domain mask.
+#'
+#' @inheritParams weighted_voronoi_domain
+#' @return A list containing polygon output, allocation raster, and weights.
+#' @export
 
 weighted_voronoi_geodesic <- function(points_sf, weight_col, boundary_sf,
                                       res = 20,
@@ -530,7 +548,58 @@ weighted_voronoi_geodesic <- function(points_sf, weight_col, boundary_sf,
 
 #--------------------------------------------------------------------------------#
 
-#Final combo function----
+#' Weighted tessellation in a constrained polygon domain
+#'
+#' Creates a complete, connected tessellation of a polygonal domain using either
+#' weighted Euclidean distance or weighted geodesic (domain-constrained) distance.
+#' Weights are supplied as an attribute of generator points and can be transformed
+#' by a user-defined function prior to allocation.
+#'
+#' @param points_sf An `sf` POINT object containing generator locations and attributes.
+#' @param weight_col Character. Name of the weight column in `points_sf`.
+#' @param boundary_sf An `sf` POLYGON/MULTIPOLYGON defining the domain.
+#' @param res Numeric. Raster resolution in CRS units (e.g. metres).
+#' @param weight_transform Function. Transforms weights before allocation. Must return
+#'   finite, strictly positive values.
+#' @param distance Character. One of `"euclidean"` or `"geodesic"`.
+#' @param max_dist Optional numeric. Maximum Euclidean distance to consider (euclidean only).
+#' @param island_min_cells Integer. Minimum patch size used in island removal.
+#' @param island_fill_iter Integer. Maximum iterations for filling reassigned cells.
+#' @param clip_to_boundary Logical. If `TRUE`, polygon output is intersected with the
+#'   input boundary for exact edge matching (euclidean only).
+#' @param close_mask Logical. If `TRUE`, applies a morphological closing to the raster
+#'   mask (geodesic only).
+#' @param close_iters Integer. Number of closing iterations (geodesic only).
+#' @param verbose Logical. If `TRUE`, prints progress.
+#'
+#' @return A list with elements including:
+#' \describe{
+#'   \item{polygons}{An `sf` object with one polygon per generator.}
+#'   \item{allocation}{A `terra::SpatRaster` assigning each cell to a generator.}
+#'   \item{summary}{A generator-level summary table.}
+#'   \item{diagnostics}{A list of diagnostic metrics and settings.}
+#' }
+#'
+#' @examples
+#' \dontrun{
+#' library(sf)
+#' crs_use <- 32636
+#' boundary_sf <- st_sf(
+#'   geometry = st_sfc(st_polygon(list(rbind(
+#'     c(0,0), c(1000,0), c(1000,1000), c(0,1000), c(0,0)
+#'   )))),
+#'   crs = crs_use
+#' )
+#' points_sf <- st_sf(
+#'   population = c(50, 200, 1000),
+#'   geometry = st_sfc(st_point(c(200,200)), st_point(c(800,250)), st_point(c(500,500))),
+#'   crs = crs_use
+#' )
+#' out <- weighted_voronoi_domain(points_sf, "population", boundary_sf,
+#'   res = 20, weight_transform = log10, distance = "euclidean", verbose = FALSE
+#' )
+#' }
+#' @export
 
 weighted_voronoi_domain <- function(points_sf,
                                     weight_col,
