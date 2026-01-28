@@ -9,19 +9,19 @@ partitions that respect complex boundaries and heterogeneous point
 weights.
 
 ## Installation
-
+```r
 install.packages(“remotes”)
 
 remotes::install_github(“HarriRaven/weightedVoronoi”)
 
 library(sf) library(weightedVoronoi)
-
+```
 ### Use a projected CRS (units in metres)
-
+```r
 crs_use \<- 32636
-
+```
 ### Domain polygon (simple rectangle for speed)
-
+```r
 boundary_sf <- st_sf(
   geometry = st_sfc(
     st_polygon(list(rbind(
@@ -34,10 +34,10 @@ boundary_sf <- st_sf(
   ),
   crs = crs_use
 )
-
+```
 
 ### Generator points with weights
-
+```r
 points_sf <- st_sf(
   village = paste0("V", 1:5),
   population = c(50, 200, 1000, 150, 400),
@@ -50,10 +50,10 @@ points_sf <- st_sf(
   ),
   crs = crs_use
 )
-
+```
 
 #### Weighted Euclidean tessellation
-
+```r
 out_euc <- weighted_voronoi_domain(
   points_sf = points_sf,
   weight_col = "population",
@@ -63,10 +63,10 @@ out_euc <- weighted_voronoi_domain(
   distance = "euclidean",
   verbose = FALSE
 )
-
+```
 
 #### Weighted geodesic tessellation (domain-constrained shortest path distance)
-
+```r
 out_geo <- weighted_voronoi_domain(
   points_sf = points_sf,
   weight_col = "population",
@@ -78,14 +78,16 @@ out_geo <- weighted_voronoi_domain(
   close_iters = 1,
   verbose = FALSE
 )
-
+```
 
 ### Inspect outputs
+```r
+names(out_euc)
 
-names(out_euc) head(out_euc$summary)
+head(out_euc$summary)
 
 out_euc$diagnostics
-
+```
 # Outputs
 
 weighted_voronoi_domain() returns:
