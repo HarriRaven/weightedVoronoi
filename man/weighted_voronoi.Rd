@@ -23,10 +23,16 @@ weighted_voronoi(
 
 \item{weight_col}{Character. Name of the weight column in \code{points_sf}.}
 
+\item{boundary}{Optional \code{sf} polygon defining the tessellation domain. Used when \code{template_rast} is \code{NULL}.}
+
+\item{template_rast}{Optional \code{terra::SpatRaster} template raster. Provide this instead of \code{boundary} + \code{res}.}
+
 \item{res}{Numeric. Raster resolution in CRS units (e.g. metres).}
 
 \item{weight_transform}{Function. Transforms weights before allocation. Must return
 finite, strictly positive values.}
+
+\item{method}{Character. Allocation method; one of \code{"argmin"} or \code{"partition"}.}
 
 \item{max_dist}{Optional numeric. Maximum Euclidean distance to consider (euclidean only).}
 

@@ -27,7 +27,7 @@ build_summary <- function(polygons_sf,
   
   # --- raster cell counts per generator_id ---
   fr <- freq_noNA(allocation_rast)
-  n_cells_by_id <- setNames(fr$count, fr$value)
+  n_cells_by_id <- stats::setNames(fr$count, fr$value)
   
   # --- weights ---
   w_raw <- as.numeric(points_sf_used[[weight_col]])
@@ -252,6 +252,10 @@ remove_islands <- function(ID, points_sf, min_cells = 5, max_iter_fill = 50) {
 #' @inheritParams weighted_voronoi_domain
 #' @return A list containing polygon output (if requested), allocation raster, and weights.
 #' @export
+#' @param boundary Optional `sf` polygon defining the tessellation domain. Used when `template_rast` is `NULL`.
+#' @param template_rast Optional `terra::SpatRaster` template raster. Provide this instead of `boundary` + `res`.
+#' @param method Character. Allocation method; one of `"argmin"` or `"partition"`.
+
 
 weighted_voronoi <- function(points_sf,
                              weight_col,
@@ -460,7 +464,7 @@ weighted_voronoi_geodesic <- function(points_sf, weight_col, boundary_sf,
   tr <- gdistance::transition(r_in, function(x) 1, directions = 8)
   tr <- gdistance::geoCorrection(tr, type = "c")
   
-  pts_sp <- as(points_sf, "Spatial")
+  pts_sp <- methods::as(points_sf, "Spatial")
   
   # --- build weighted geodesic cost stack ---
   cost_list <- vector("list", nrow(points_sf))

@@ -9,6 +9,14 @@ Encoding: UTF-8
 Roxygen: list(markdown = TRUE)
 RoxygenNote: 7.3.3
 Suggests: 
+    dplyr,
+    gdistance,
     knitr,
+    raster,
     rmarkdown
 VignetteBuilder: knitr
+Imports: 
+    methods,
+    sf,
+    stats,
+    terra
