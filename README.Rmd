@@ -14,6 +14,9 @@ Tools for weighted spatial tessellation using Euclidean and geodesic distances w
 
 🌐 Website: https://HarriRaven.github.io/weightedVoronoi/
 
+```{r animation, echo=FALSE, out.width="100%"}
+knitr::include_graphics("man/figures/animation-euclidean.gif")
+```
 
 ## Installation
 ```r

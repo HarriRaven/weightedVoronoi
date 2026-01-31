@@ -12,6 +12,8 @@ weights.
 
 🌐 Website: <https://HarriRaven.github.io/weightedVoronoi/>
 
+<img src="man/figures/animation-euclidean.gif" alt="" width="100%" />
+
 ## Installation
 
 ``` r

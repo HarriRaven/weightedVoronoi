@@ -1,6 +1,6 @@
 # weightedVoronoi
 
-![](inst/figures/fig-main.png)
+![](reference/figures/fig-main.png)
 
 Tools for weighted spatial tessellation using Euclidean and geodesic
 distances within constrained polygons. Produces complete, connected
@@ -8,6 +8,8 @@ partitions that respect complex boundaries and heterogeneous point
 weights.
 
 🌐 Website: <https://HarriRaven.github.io/weightedVoronoi/>
+
+![](reference/figures/animation-euclidean.gif)
 
 ## Installation
 
