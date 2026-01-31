@@ -1,0 +1,34 @@
+url: https://HarriRaven.github.io/weightedVoronoi/
+
+template:
+  bootstrap: 5
+  bootswatch: flatly
+  bslib:
+    base_font: {google: "Inter"}
+
+navbar:
+  structure:
+    left:  [intro, reference, articles]
+    right: [github]
+  components:
+    github:
+      icon: fab fa-github
+      href: https://github.com/HarriRaven/weightedVoronoi
+      aria-label: GitHub repository
+
+home:
+  title: weightedVoronoi
+  description: Tools for weighted spatial tessellation using Euclidean and geodesic distances within constrained polygons.
+  links:
+  - text: Get started (vignette)
+    href: articles/weighted-voronoi.html
+
+reference:
+- title: Main function
+  contents:
+  - weighted_voronoi_domain
+
+- title: Engines
+  contents:
+  - weighted_voronoi
+  - weighted_voronoi_geodesic

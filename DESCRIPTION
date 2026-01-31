@@ -4,6 +4,9 @@ Version: 0.1.0
 Authors@R: 
     person("Harri", "Ravenscroft", , "harri.ravenscroft@hotmail.co.uk", role = c("aut", "cre"))
 Description: Tools for weighted spatial tessellation using Euclidean and geodesic distances within constrained polygons. Produces complete, connected Voronoi partitions that respect complex boundaries and heterogeneous point weights.
+URL: https://HarriRaven.github.io/weightedVoronoi/,
+    https://github.com/HarriRaven/weightedVoronoi
+BugReports: https://github.com/HarriRaven/weightedVoronoi/issues
 License: MIT + file LICENSE
 Encoding: UTF-8
 Roxygen: list(markdown = TRUE)

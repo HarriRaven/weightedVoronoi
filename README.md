@@ -1,6 +1,8 @@
 
 <!-- README.md is generated from README.Rmd. Please edit README.Rmd. -->
 
+<img src="man/figures/fig-main.png" alt="" width="100%" />
+
 # weightedVoronoi
 
 Tools for weighted spatial tessellation using Euclidean and geodesic
@@ -8,20 +10,27 @@ distances within constrained polygons. Produces complete, connected
 partitions that respect complex boundaries and heterogeneous point
 weights.
 
+🌐 Website: <https://HarriRaven.github.io/weightedVoronoi/>
+
 ## Installation
-```r
+
+``` r
 install.packages(“remotes”)
 
 remotes::install_github(“HarriRaven/weightedVoronoi”)
 
 library(sf) library(weightedVoronoi)
 ```
+
 ### Use a projected CRS (units in metres)
-```r
+
+``` r
 crs_use \<- 32636
 ```
+
 ### Domain polygon (simple rectangle for speed)
-```r
+
+``` r
 boundary_sf <- st_sf(
   geometry = st_sfc(
     st_polygon(list(rbind(
@@ -37,7 +46,8 @@ boundary_sf <- st_sf(
 ```
 
 ### Generator points with weights
-```r
+
+``` r
 points_sf <- st_sf(
   village = paste0("V", 1:5),
   population = c(50, 200, 1000, 150, 400),
@@ -53,7 +63,8 @@ points_sf <- st_sf(
 ```
 
 #### Weighted Euclidean tessellation
-```r
+
+``` r
 out_euc <- weighted_voronoi_domain(
   points_sf = points_sf,
   weight_col = "population",
@@ -66,7 +77,8 @@ out_euc <- weighted_voronoi_domain(
 ```
 
 #### Weighted geodesic tessellation (domain-constrained shortest path distance)
-```r
+
+``` r
 out_geo <- weighted_voronoi_domain(
   points_sf = points_sf,
   weight_col = "population",
@@ -81,13 +93,15 @@ out_geo <- weighted_voronoi_domain(
 ```
 
 ### Inspect outputs
-```r
+
+``` r
 names(out_euc)
 
 head(out_euc$summary)
 
 out_euc$diagnostics
 ```
+
 # Outputs
 
 weighted_voronoi_domain() returns:
