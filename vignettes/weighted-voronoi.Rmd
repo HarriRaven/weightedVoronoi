@@ -20,17 +20,18 @@ knitr::opts_chunk$set(
 library(weightedVoronoi)
 ```
 
-Introduction
+# Introduction
 
 Spatial allocation around point locations is a recurring requirement in ecology and social–ecological research, including the delineation of settlement influence zones, species territories, and management areas. Voronoi tessellations provide a simple and transparent framework for dividing space among generators, but standard implementations assume uniform influence and unconstrained Euclidean distance.
 
 The weightedVoronoi package extends this framework by allowing (i) generator-specific weights and (ii) tessellations constrained to arbitrary polygonal domains using either Euclidean or geodesic distance. This vignette demonstrates the use of the package on a representative example with a complex domain boundary.
 
 
-Example data
+## Example data
 
 We first define a concave, irregular spatial domain and a set of generator points with heterogeneous weights.
 
+```r
 library(sf)
 library(weightedVoronoi)
 
@@ -50,12 +51,13 @@ points_sf <- st_sf(
 
 plot(st_geometry(boundary_sf), border = "black", lwd = 2)
 plot(st_geometry(points_sf), add = TRUE, pch = 21, bg = "red")
+```
 
-
-Weighted Euclidean tessellation
+## Weighted Euclidean tessellation
 
 We first generate a weighted tessellation using Euclidean distance. Generator influence is scaled using a logarithmic transformation of the population weights.
 
+```r
 out_euc <- weighted_voronoi_domain(
   points_sf = points_sf,
   weight_col = "population",
@@ -70,12 +72,13 @@ out_euc <- weighted_voronoi_domain(
 plot(st_geometry(boundary_sf), border = "black", lwd = 2)
 plot(out_euc$polygons["generator_id"], add = TRUE)
 plot(st_geometry(points_sf), add = TRUE, pch = 21, bg = "red")
+```
 
-
-Weighted geodesic tessellation
+## Weighted geodesic tessellation
 
 We now generate a tessellation using geodesic distance, in which distances are constrained to paths entirely within the domain.
 
+```r
 out_geo <- weighted_voronoi_domain(
   points_sf = points_sf,
   weight_col = "population",
@@ -91,19 +94,20 @@ out_geo <- weighted_voronoi_domain(
 plot(st_geometry(boundary_sf), border = "black", lwd = 2)
 plot(out_geo$polygons["generator_id"], add = TRUE)
 plot(st_geometry(points_sf), add = TRUE, pch = 21, bg = "red")
+```
 
-
-Comparing Euclidean and geodesic tessellations
+# Comparing Euclidean and geodesic tessellations
 
 Although both tessellations fully partition the domain, they differ in how influence propagates through concave boundaries and narrow corridors. The Euclidean tessellation allocates regions based on straight-line distance within the rasterised domain, whereas the geodesic tessellation respects the domain geometry and prevents influence across inaccessible areas.
 
 These differences are reflected both visually and in the generator-level summary tables returned by the software.
 
+```r
 out_euc$summary
 out_geo$summary
+```
 
-
-Practical considerations
+# Practical considerations
 
 - Resolution: Smaller raster cell sizes improve boundary fidelity but increase computation time.
 
@@ -112,6 +116,6 @@ Practical considerations
 - Distance metric: Geodesic distance is recommended when domain geometry strongly constrains access or interaction.
 
 
-Summary
+# Summary
 
 This vignette illustrates how weightedVoronoi can be used to generate reproducible, weighted spatial tessellations that respect complex boundaries and heterogeneous generator influence. The approach provides a flexible alternative to standard Voronoi methods in ecological and social–ecological applications.
