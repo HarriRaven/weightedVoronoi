@@ -62,6 +62,12 @@ by a user-defined function prior to allocation.</p>
 <span>  clip_to_boundary <span class="op">=</span> <span class="cn">TRUE</span>,</span>
 <span>  close_mask <span class="op">=</span> <span class="cn">TRUE</span>,</span>
 <span>  close_iters <span class="op">=</span> <span class="fl">1</span>,</span>
+<span>  dem_rast <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  use_tobler <span class="op">=</span> <span class="cn">TRUE</span>,</span>
+<span>  tobler_v0_kmh <span class="op">=</span> <span class="fl">6</span>,</span>
+<span>  tobler_a <span class="op">=</span> <span class="fl">3.5</span>,</span>
+<span>  tobler_b <span class="op">=</span> <span class="fl">0.05</span>,</span>
+<span>  min_speed_kmh <span class="op">=</span> <span class="fl">0.25</span>,</span>
 <span>  verbose <span class="op">=</span> <span class="cn">TRUE</span></span>
 <span><span class="op">)</span></span></code></pre></div>
     </div>
@@ -121,6 +127,32 @@ mask (geodesic only).</p></dd>
 <dd><p>Integer. Number of closing iterations (geodesic only).</p></dd>
 
 
+<dt id="arg-dem-rast">dem_rast<a class="anchor" aria-label="anchor" href="#arg-dem-rast"></a></dt>
+<dd><p>Optional SpatRaster providing elevation or resistance surface.
+Must align with the tessellation domain and resolution.</p></dd>
+
+
+<dt id="arg-use-tobler">use_tobler<a class="anchor" aria-label="anchor" href="#arg-use-tobler"></a></dt>
+<dd><p>Logical; if TRUE, apply Tobler's hiking function to convert
+slope into isotropic movement cost.</p></dd>
+
+
+<dt id="arg-tobler-v-kmh">tobler_v0_kmh<a class="anchor" aria-label="anchor" href="#arg-tobler-v-kmh"></a></dt>
+<dd><p>Base walking speed on flat terrain (km/h).</p></dd>
+
+
+<dt id="arg-tobler-a">tobler_a<a class="anchor" aria-label="anchor" href="#arg-tobler-a"></a></dt>
+<dd><p>Tobler exponential slope coefficient (default -3.5).</p></dd>
+
+
+<dt id="arg-tobler-b">tobler_b<a class="anchor" aria-label="anchor" href="#arg-tobler-b"></a></dt>
+<dd><p>Tobler slope multiplier (default 0.05).</p></dd>
+
+
+<dt id="arg-min-speed-kmh">min_speed_kmh<a class="anchor" aria-label="anchor" href="#arg-min-speed-kmh"></a></dt>
+<dd><p>Minimum allowed speed to avoid infinite costs.</p></dd>
+
+
 <dt id="arg-verbose">verbose<a class="anchor" aria-label="anchor" href="#arg-verbose"></a></dt>
 <dd><p>Logical. If <code>TRUE</code>, prints progress.</p></dd>
 
@@ -141,6 +173,15 @@ mask (geodesic only).</p></dd>
 
 
 </dl></div>
+    <div class="section level2">
+    <h2 id="details">Details<a class="anchor" aria-label="anchor" href="#details"></a></h2>
+    <p>When <code>distance = "geodesic"</code>, distances are computed as shortest paths
+constrained to the spatial domain. If <code>dem_rast</code> is supplied and
+<code>use_tobler = TRUE</code>, movement cost between adjacent raster cells is modified
+using Tobler's hiking function, such that steeper slopes increase effective
+distance. This allows elevation or resistance surfaces to influence spatial
+allocation while preserving a complete tessellation.</p>
+    </div>
 
     <div class="section level2">
     <h2 id="ref-examples">Examples<a class="anchor" aria-label="anchor" href="#ref-examples"></a></h2>

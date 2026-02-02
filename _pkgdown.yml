@@ -18,10 +18,12 @@ navbar:
 
 home:
   title: weightedVoronoi
-  description: Tools for weighted spatial tessellation using Euclidean and geodesic distances within constrained polygons.
+  description: Tools for weighted spatial tessellation using Euclidean and geodesic distances within constrained polygons, with optional elevation-dependent resistance (Tobler hiking function) for terrain-aware allocation.
   links:
   - text: Get started (vignette)
     href: articles/weighted-voronoi.html
+  - text: Source code
+    href: https://github.com/HarriRaven/weightedVoronoi
 
 reference:
 - title: Main function

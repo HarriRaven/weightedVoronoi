@@ -22,6 +22,12 @@ weighted_voronoi_domain(
   clip_to_boundary = TRUE,
   close_mask = TRUE,
   close_iters = 1,
+  dem_rast = NULL,
+  use_tobler = TRUE,
+  tobler_v0_kmh = 6,
+  tobler_a = 3.5,
+  tobler_b = 0.05,
+  min_speed_kmh = 0.25,
   verbose = TRUE
 )
 ```
@@ -80,6 +86,32 @@ weighted_voronoi_domain(
 
   Integer. Number of closing iterations (geodesic only).
 
+- dem_rast:
+
+  Optional SpatRaster providing elevation or resistance surface. Must
+  align with the tessellation domain and resolution.
+
+- use_tobler:
+
+  Logical; if TRUE, apply Tobler's hiking function to convert slope into
+  isotropic movement cost.
+
+- tobler_v0_kmh:
+
+  Base walking speed on flat terrain (km/h).
+
+- tobler_a:
+
+  Tobler exponential slope coefficient (default -3.5).
+
+- tobler_b:
+
+  Tobler slope multiplier (default 0.05).
+
+- min_speed_kmh:
+
+  Minimum allowed speed to avoid infinite costs.
+
 - verbose:
 
   Logical. If `TRUE`, prints progress.
@@ -105,6 +137,16 @@ A list with elements including:
 - diagnostics:
 
   A list of diagnostic metrics and settings.
+
+## Details
+
+When `distance = "geodesic"`, distances are computed as shortest paths
+constrained to the spatial domain. If `dem_rast` is supplied and
+`use_tobler = TRUE`, movement cost between adjacent raster cells is
+modified using Tobler's hiking function, such that steeper slopes
+increase effective distance. This allows elevation or resistance
+surfaces to influence spatial allocation while preserving a complete
+tessellation.
 
 ## Examples
 

@@ -412,6 +412,12 @@ weighted_voronoi_geodesic <- function(points_sf, weight_col, boundary_sf,
                                       weight_transform = function(w) w,
                                       close_mask = TRUE,
                                       close_iters = 1,
+                                      dem_rast = NULL,
+                                      use_tobler = TRUE,
+                                      tobler_v0_kmh = 6,
+                                      tobler_a = 3.5,
+                                      tobler_b = 0.05,
+                                      min_speed_kmh = 0.25,
                                       verbose = TRUE) {
   
   if (!requireNamespace("gdistance", quietly = TRUE)) stop("Install gdistance.")
@@ -454,15 +460,35 @@ weighted_voronoi_geodesic <- function(points_sf, weight_col, boundary_sf,
   w <- weight_transform(w_raw)
   if (any(!is.finite(w)) || any(w <= 0)) stop("Weights must be finite and > 0.")
   
-  # --- conductance surface for gdistance ---
-  r_in <- raster::raster(r)
-  vv <- raster::values(r_in)
-  vv[is.na(vv)] <- NA
-  vv[!is.na(vv)] <- 1
-  raster::values(r_in) <- vv
+  # --- resistance surface (seconds per metre) ---
+  # Default: uniform resistance (= 1) if no DEM supplied
+  resistance <- r
+  terra::values(resistance) <- 1
   
-  tr <- gdistance::transition(r_in, function(x) 1, directions = 8)
+  if (!is.null(dem_rast)) {
+    if (!inherits(dem_rast, "SpatRaster")) stop("dem_rast must be a terra SpatRaster.")
+    if (!use_tobler) stop("dem_rast provided but use_tobler=FALSE; no alternative implemented yet.")
+    
+    resistance <- .tobler_resistance_from_dem(
+      dem_rast = dem_rast,
+      mask_r = r,
+      v0_kmh = tobler_v0_kmh,
+      a = tobler_a,
+      b = tobler_b,
+      min_speed_kmh = min_speed_kmh
+    )
+  }
+  
+  # Convert resistance -> conductance internally for gdistance
+  cond <- 1 / resistance
+  
+  # --- conductance surface for gdistance ---
+  r_in <- raster::raster(cond)
+  
+  # Transition: mean conductance between neighboring cells
+  tr <- gdistance::transition(r_in, transitionFunction = mean, directions = 8)
   tr <- gdistance::geoCorrection(tr, type = "c")
+  
   
   pts_sp <- methods::as(points_sf, "Spatial")
   
@@ -574,7 +600,23 @@ weighted_voronoi_geodesic <- function(points_sf, weight_col, boundary_sf,
 #' @param close_mask Logical. If `TRUE`, applies a morphological closing to the raster
 #'   mask (geodesic only).
 #' @param close_iters Integer. Number of closing iterations (geodesic only).
+#' @param dem_rast Optional SpatRaster providing elevation or resistance surface.
+#'   Must align with the tessellation domain and resolution.
+#' @param use_tobler Logical; if TRUE, apply Tobler's hiking function to convert
+#'   slope into isotropic movement cost.
+#' @param tobler_v0_kmh Base walking speed on flat terrain (km/h).
+#' @param tobler_a Tobler exponential slope coefficient (default -3.5).
+#' @param tobler_b Tobler slope multiplier (default 0.05).
+#' @param min_speed_kmh Minimum allowed speed to avoid infinite costs.
 #' @param verbose Logical. If `TRUE`, prints progress.
+#' 
+#' @details
+#' When `distance = "geodesic"`, distances are computed as shortest paths
+#' constrained to the spatial domain. If `dem_rast` is supplied and
+#' `use_tobler = TRUE`, movement cost between adjacent raster cells is modified
+#' using Tobler's hiking function, such that steeper slopes increase effective
+#' distance. This allows elevation or resistance surfaces to influence spatial
+#' allocation while preserving a complete tessellation.
 #'
 #' @return A list with elements including:
 #' \describe{
@@ -619,6 +661,12 @@ weighted_voronoi_domain <- function(points_sf,
                                     # Geodesic options
                                     close_mask = TRUE,
                                     close_iters = 1,
+                                    dem_rast = NULL,
+                                    use_tobler = TRUE,
+                                    tobler_v0_kmh = 6,
+                                    tobler_a = 3.5,
+                                    tobler_b = 0.05,
+                                    min_speed_kmh = 0.25,
                                     # general
                                     verbose = TRUE) {
   
@@ -726,6 +774,12 @@ weighted_voronoi_domain <- function(points_sf,
     weight_transform = weight_transform,
     close_mask = close_mask,
     close_iters = close_iters,
+    dem_rast = dem_rast,
+    use_tobler = use_tobler,
+    tobler_v0_kmh = tobler_v0_kmh,
+    tobler_a = tobler_a,
+    tobler_b = tobler_b,
+    min_speed_kmh = min_speed_kmh,
     verbose = verbose
   )
   
@@ -754,7 +808,13 @@ weighted_voronoi_domain <- function(points_sf,
     unreachable_rast = out$unreachable,
     extra = list(
       close_mask = close_mask,
-      close_iters = close_iters
+      close_iters = close_iters,
+      dem_rast = dem_rast,
+      use_tobler = use_tobler,
+      tobler_v0_kmh = tobler_v0_kmh,
+      tobler_a = tobler_a,
+      tobler_b = tobler_b,
+      min_speed_kmh = min_speed_kmh
     )
   )
   

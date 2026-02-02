@@ -12,8 +12,8 @@
 <link href="deps/font-awesome-6.5.2/css/all.min.css" rel="stylesheet">
 <link href="deps/font-awesome-6.5.2/css/v4-shims.min.css" rel="stylesheet">
 <script src="deps/headroom-0.11.0/headroom.min.js"></script><script src="deps/headroom-0.11.0/jQuery.headroom.min.js"></script><script src="deps/bootstrap-toc-1.0.1/bootstrap-toc.min.js"></script><script src="deps/clipboard.js-2.0.11/clipboard.min.js"></script><script src="deps/search-1.0.0/autocomplete.jquery.min.js"></script><script src="deps/search-1.0.0/fuse.min.js"></script><script src="deps/search-1.0.0/mark.min.js"></script><!-- pkgdown --><script src="pkgdown.js"></script><meta property="og:title" content="weightedVoronoi">
-<meta name="description" content="Tools for weighted spatial tessellation using Euclidean and geodesic distances within constrained polygons.">
-<meta property="og:description" content="Tools for weighted spatial tessellation using Euclidean and geodesic distances within constrained polygons.">
+<meta name="description" content="Tools for weighted spatial tessellation using Euclidean and geodesic distances within constrained polygons, with optional elevation-dependent resistance (Tobler hiking function) for terrain-aware allocation.">
+<meta property="og:description" content="Tools for weighted spatial tessellation using Euclidean and geodesic distances within constrained polygons, with optional elevation-dependent resistance (Tobler hiking function) for terrain-aware allocation.">
 </head>
 <body>
     <a href="#main" class="visually-hidden-focusable">Skip to contents</a>
@@ -131,6 +131,21 @@
 <span>  close_iters <span class="op">=</span> <span class="fl">1</span>,</span>
 <span>  verbose <span class="op">=</span> <span class="cn">FALSE</span></span>
 <span><span class="op">)</span></span></code></pre></div>
+<div class="section level5">
+<h5 id="terrain-aware-tessellations">Terrain-aware tessellations<a class="anchor" aria-label="anchor" href="#terrain-aware-tessellations"></a>
+</h5>
+<p><code>weightedVoronoi</code> supports geodesic tessellations that incorporate environmental resistance. When supplied with an elevation raster, distances are modified using Tobler’s hiking function, allowing topography to influence spatial allocation.</p>
+<div class="section level6">
+<h6 id="flat-domain-no-resistance">Flat domain (no resistance)<a class="anchor" aria-label="anchor" href="#flat-domain-no-resistance"></a>
+</h6>
+<p><img src="reference/figures/fig-flat-3d.png" alt="" width="100%"></p>
+</div>
+<div class="section level6">
+<h6 id="elevation-dependent-resistance">Elevation-dependent resistance<a class="anchor" aria-label="anchor" href="#elevation-dependent-resistance"></a>
+</h6>
+<p><img src="reference/figures/fig-dem-3d.png" alt="" width="100%"></p>
+</div>
+</div>
 </div>
 </div>
 <div class="section level3">
@@ -176,6 +191,7 @@
 <li><a href="https://github.com/HarriRaven/weightedVoronoi/" class="external-link">Browse source code</a></li>
 <li><a href="https://github.com/HarriRaven/weightedVoronoi/issues" class="external-link">Report a bug</a></li>
 <li><a href="articles/weighted-voronoi.html">Get started (vignette)</a></li>
+<li><a href="https://github.com/HarriRaven/weightedVoronoi" class="external-link">Source code</a></li>
 </ul>
 </div>
 

@@ -90,6 +90,24 @@ out_geo <- weighted_voronoi_domain(
 )
 ```
 
+##### Terrain-aware tessellations
+
+`weightedVoronoi` supports geodesic tessellations that incorporate environmental
+resistance. When supplied with an elevation raster, distances are modified using
+Tobler’s hiking function, allowing topography to influence spatial allocation.
+
+###### Flat domain (no resistance)
+
+```{r fig-flat-3d, echo=FALSE, out.width="100%"}
+knitr::include_graphics("man/figures/fig-flat-3d.png")
+```
+
+###### Elevation-dependent resistance
+
+```{r fig-dem-3d, echo=FALSE, out.width="100%"}
+knitr::include_graphics("man/figures/fig-dem-3d.png")
+```
+
 ### Inspect outputs
 ```r
 names(out_euc)
