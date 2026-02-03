@@ -829,3 +829,4 @@ weighted_voronoi_domain <- function(points_sf,
     diagnostics = diagnostics
   )
 }
+
