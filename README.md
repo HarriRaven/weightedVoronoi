@@ -144,9 +144,20 @@ weighted_voronoi_domain() returns:
   tessellations because shortest-path distances are computed within the
   domain.
 
-Citation
+## Citation
 
-If you use weightedVoronoi, please cite the associated software note.
+If you use weightedVoronoi, please cite the associated software note:
+
+``` r
+bibentry(
+  bibtype = "Manual",
+  title = "weightedVoronoi: Weighted Spatial Tessellations Using Euclidean and Geodesic Distances",
+  author = person("Harri", "Ravenscroft"),
+  year = "2026",
+  note = "R package version 0.1.0",
+  url = "https://github.com/HarriRaven/weightedVoronoi"
+)
+```
 
 <!-- badges: start -->
 

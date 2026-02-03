@@ -3,6 +3,6 @@ bibentry(
   title = "weightedVoronoi: Weighted Spatial Tessellations Using Euclidean and Geodesic Distances",
   author = person("Harri", "Ravenscroft"),
   year = "2026",
-  note = "R package version 0.0.0.9000",
+  note = "R package version 0.1.0",
   url = "https://github.com/HarriRaven/weightedVoronoi"
 )
