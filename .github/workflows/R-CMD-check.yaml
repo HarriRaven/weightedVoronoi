@@ -31,5 +31,6 @@ jobs:
             any::testthat
             any::covr
           needs: check
+          dependencies: all
 
       - uses: r-lib/actions/check-r-package@v2
