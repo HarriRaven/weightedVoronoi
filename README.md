@@ -151,4 +151,5 @@ If you use weightedVoronoi, please cite the associated software note.
 <!-- badges: start -->
 
 [![R-CMD-check](https://github.com/HarriRaven/weightedVoronoi/actions/workflows/R-CMD-check.yaml/badge.svg)](https://github.com/HarriRaven/weightedVoronoi/actions/workflows/R-CMD-check.yaml)
+
 <!-- badges: end -->
