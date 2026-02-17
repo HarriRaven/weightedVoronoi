@@ -1,0 +1,28 @@
+name: Build JOSS paper PDF
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - paper.md
+      - paper.bib
+      - inst/figures/**
+      - man/figures/**
+
+jobs:
+  paper:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build paper
+        uses: openjournals/openjournals-pdf-generator@v1
+        with:
+          paper-path: paper.md
+          bibliography-path: paper.bib
+
+      - name: Upload PDF
+        uses: actions/upload-artifact@v4
+        with:
+          name: joss-paper
+          path: paper.pdf
