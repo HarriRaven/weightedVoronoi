@@ -19,80 +19,45 @@ bibliography: paper.bib
 
 # Summary
 
-Spatial allocation around point locations is a recurring requirement in ecology and social–ecological research, including delineating settlement boundaries, defining service or management catchments, linking land cover to communities or sampling sites, and modelling influence zones across heterogeneous landscapes. Standard Voronoi (Thiessen) tessellations assume equal generator influence and unconstrained Euclidean space, assumptions that are frequently violated in ecological systems where sites differ in importance and effective distance is shaped by complex boundaries, barriers, and terrain.
+Many ecological and social–ecological analyses require dividing space into zones of influence around point locations such as settlements, sampling sites, nests, or service centres. A common mathematical tool for this purpose is a Voronoi tessellation, which partitions space so that every location is assigned to its nearest generator point. However, standard Voronoi tessellations assume that all generators have equal importance and that distance is measured in straight lines across unconstrained space. These assumptions are often unrealistic in ecological systems where sites differ in size or influence and where coastlines, mountains, lakes, or fragmented habitats constrain movement and access.
 
-`weightedVoronoi` is an R package that generates **multiplicatively weighted tessellations** within **arbitrary polygonal domains** under either **Euclidean** or **domain-constrained geodesic** distance metrics, with optional **resistance-modified geodesic distances** (e.g., terrain-aware allocation). Tessellations are computed on a rasterised representation of the domain to ensure complete coverage of irregular and concave geometries. Post-processing enforces a single connected region per generator and removes enclave artefacts. The package returns polygon and raster tessellations alongside generator-level summaries and diagnostics to support reproducible ecological spatial allocation workflows.
+`weightedVoronoi` is an R package that generates multiplicatively weighted tessellations within arbitrary polygonal domains under either Euclidean or domain-constrained geodesic distance metrics. Geodesic distances may optionally incorporate resistance surfaces, enabling terrain-aware spatial allocation. The package produces complete, connected tessellations that conform to irregular boundaries and returns diagnostic outputs to support reproducible ecological spatial analysis.
 
 # Statement of Need
 
-Ecological spatial analyses often require assigning each location within a bounded region to the “nearest” or most influential site while accounting for heterogeneous importance (e.g., population size, sampling effort, service capacity) and constrained accessibility. In coastal systems, fragmented habitats, mountainous terrain, or protected areas, Euclidean distance may poorly represent interaction or access. 
+Ecological spatial allocation problems commonly involve assigning land cover, environmental variables, or management responsibilities to settlements, communities, or sampling sites. In such contexts, allocation must often account for:
 
-Existing R tools address parts of this problem but do not provide an integrated workflow. Unweighted Voronoi tessellations are available via packages such as `deldir`, while spatial point-pattern frameworks such as `spatstat` provide related planar tessellation utilities. Least-cost and grid-based distance calculations can be performed using `gdistance`. However, these approaches typically:
+1. heterogeneous generator importance (e.g., population size, sampling effort, service capacity),
+2. irregular or concave spatial domains (e.g., protected areas, coastlines, fragmented habitats),
+3. non-Euclidean accessibility shaped by barriers or terrain.
 
-- assume Euclidean distance or unconstrained planar space,
-- do not integrate multiplicative generator weighting within arbitrary polygonal domains,
-- require bespoke workflows to derive spatial partitions from cost surfaces,
-- do not automatically enforce single connected regions per generator,
-- lack structured diagnostics describing allocation completeness and connectivity.
+Straight-line distance may misrepresent ecological interaction or accessibility in mountainous regions, island systems, or landscapes fragmented by unsuitable habitat. While researchers can compute least-cost or constrained distances, translating these into complete spatial partitions typically requires bespoke workflows.
 
-`weightedVoronoi` fills this gap by providing a unified, open-source implementation for producing **weighted Euclidean** and **boundary-constrained geodesic** tessellations within arbitrary domains, optionally incorporating resistance surfaces, and returning reproducible diagnostics suitable for ecological sensitivity analysis.
+`weightedVoronoi` was developed to provide a unified and reproducible solution for weighted spatial allocation under Euclidean and domain-constrained geodesic distance assumptions. The target audience includes spatial ecologists, landscape ecologists, conservation planners, and researchers linking spatial covariates to socially or biologically defined influence zones.
 
-# Software Description
+# State of the Field
 
-The package (version 1.0.0) is implemented in R and depends on open-source spatial infrastructure including `sf` for vector data handling [@pebesma2018sf], `terra` for raster operations [@hijmans2025terra], and optionally `gdistance` for shortest-path distance computation on grids [@vanetten2017gdistance].
+Unweighted Voronoi tessellations are available in R through packages such as `deldir`, and planar tessellation utilities are included in spatial point-pattern frameworks such as `spatstat`. These tools generally assume Euclidean distance and do not integrate multiplicative generator weighting within arbitrary polygonal domains. 
 
-The core function is:
+Grid-based shortest-path and least-cost distances can be computed using `gdistance`, but this functionality is not packaged as a complete tessellation framework and does not automatically produce spatial partitions or enforce connectivity constraints. In practice, researchers often combine multiple tools or rely on proprietary geographic information system software to implement weighted or constrained tessellations.
 
-weighted_voronoi_domain()
+`weightedVoronoi` differs by integrating multiplicative weighting, arbitrary polygonal domain constraints, optional resistance-modified geodesic distance, automated enforcement of single connected regions per generator, and structured diagnostics within a single open-source R workflow. This integration provides functionality not simultaneously available in existing R spatial packages.
 
+# Software Design
 
-## Inputs
+The package is implemented in R (version 1.0.0) and builds on open-source spatial infrastructure including `sf` for vector data handling [@pebesma2018sf], `terra` for raster operations [@hijmans2025terra], and optionally `gdistance` for graph-based shortest-path computation on grids [@vanetten2017gdistance].
 
-Users supply:
+A raster-based architecture was chosen to allow tessellations within complex, concave, or fragmented domains and to enable geodesic and resistance-aware distance calculations. While analytic Voronoi constructions are efficient in unconstrained planar settings, they are less flexible for arbitrary polygonal masks and non-Euclidean distances. The raster approach provides geometric generality at the cost of resolution-dependent computation time.
 
-- an `sf` point object containing generator locations and a numeric weight attribute,
-- an `sf` polygon (`boundary_sf`) defining the tessellation domain,
-- a raster resolution controlling discretisation,
-- a weight transformation function (e.g., identity, logarithmic, power),
-- a distance mode (`"euclidean"` or `"geodesic"`).
+The core function, `weighted_voronoi_domain()`, accepts generator points with weights, a polygonal boundary, a raster resolution, a weight transformation function, and a distance mode. Allocation follows a multiplicative rule in which each raster cell is assigned to the generator minimizing weighted distance. Post-processing enforces single connected regions per generator and fills unreachable cells in geodesic mode to guarantee complete domain coverage.
 
-Inputs must use a projected coordinate reference system with metric units.
+This design prioritizes transparency, reproducibility, and flexibility for ecological applications where boundary geometry and accessibility constraints are central.
 
-## Weighted allocation rule
+# Research Impact Statement
 
-Each raster cell location \(x\) within the domain \(D\) is assigned to the generator \(p_i\) that minimises:
+The package provides fully reproducible workflows, example vignettes, and unit tests to support immediate application in ecological research. It is distributed under the MIT license and archived with a versioned DOI to facilitate citation and reuse.
 
-\[
-\arg\min_i \frac{d(x, p_i)}{g(w_i)}
-\]
-
-where \(d(\cdot)\) is Euclidean or geodesic distance, \(w_i\) is the generator-specific weight, and \(g(\cdot)\) is a user-defined transformation. This multiplicative formulation supports ecologically motivated assumptions such as diminishing marginal influence via logarithmic or sub-linear scaling.
-
-## Distance modes
-
-All tessellations are computed on a rasterised representation of the domain to ensure exact conformance to irregular boundaries.
-
-- **Euclidean mode**: Straight-line distances are computed efficiently on the raster grid using `terra`.
-- **Geodesic mode**: Shortest-path distances are computed within the rasterised domain using graph-based methods via `gdistance`. Cells unreachable from a given generator are assigned infinite cost.
-
-Optionally, geodesic distances may incorporate a resistance surface (e.g., elevation- or slope-derived movement cost) to produce terrain-aware tessellations.
-
-## Post-processing and outputs
-
-To improve interpretability and robustness:
-
-- each generator is guaranteed ownership of the raster cell containing its location,
-- disconnected “island” regions are removed to enforce a single connected component per generator,
-- cells unreachable from all generators (geodesic mode) are reassigned locally to preserve complete domain coverage.
-
-The function returns:
-
-1. an `sf` polygon tessellation (one polygon per generator),
-2. an allocation raster (`terra::SpatRaster`),
-3. a generator-level summary table (allocated area, area share, cell count, raw and transformed weights),
-4. a structured diagnostics object (domain closure, raster resolution, number of generators retained, unreachable fractions in geodesic mode, and parameter settings).
-
-Given identical inputs and resolution, tessellations are deterministic and reproducible.
+The software has been developed in the context of ecological spatial allocation problems and is designed to support applications including settlement boundary approximation, landscape-level influence modelling, and terrain-aware accessibility analysis. By integrating weighting, boundary constraints, and geodesic distance within a single workflow, the package reduces reliance on ad hoc scripting or proprietary software and promotes reproducible ecological spatial modelling.
 
 # Example
 
@@ -129,7 +94,7 @@ out <- weighted_voronoi_domain(
 )
 ```
 
-Availability
+## Availability
 
 Source code: https://github.com/HarriRaven/weightedVoronoi
 
@@ -137,6 +102,14 @@ Archived release (v1.0.0): https://doi.org/10.5281/zenodo.18492446
 
 License: MIT
 
-Acknowledgements
+
+## AI Usage Disclosure
+
+Limited generative AI tools were used to assist in drafting and editing the manuscript text. 
+All technical descriptions, software functionality, and methodological content were reviewed and verified by the author to ensure correctness and fidelity to the implemented code. 
+No AI tools were used in the development of the software itself.
+
+
+## Acknowledgements
 
 H. Ravenscroft acknowledges support from the Department of Earth Sciences, University of Oxford, and the Royal Botanic Gardens, Kew.
