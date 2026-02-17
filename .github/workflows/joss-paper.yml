@@ -1,4 +1,4 @@
-name: Build JOSS paper PDF
+name: Draft JOSS paper PDF
 
 on:
   workflow_dispatch:
@@ -7,19 +7,20 @@ on:
       - paper.md
       - paper.bib
       - inst/figures/**
-      - man/figures/**
+      - .github/workflows/joss-paper.yml
 
 jobs:
   paper:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
 
-      - name: Build paper
-        uses: openjournals/openjournals-pdf-generator@v1
+      - name: Build draft PDF
+        uses: openjournals/openjournals-draft-action@master
         with:
+          journal: joss
           paper-path: paper.md
-          bibliography-path: paper.bib
 
       - name: Upload PDF
         uses: actions/upload-artifact@v4
