@@ -19,7 +19,7 @@ bibliography: paper.bib
 
 # Summary
 
-Many ecological and social–ecological analyses require dividing space into zones of influence around point locations such as settlements, sampling sites, nests, or service centres. A common mathematical tool for this purpose is a Voronoi tessellation, which partitions space so that every location is assigned to its nearest generator point. However, standard Voronoi tessellations assume that all generators have equal importance and that distance is measured in straight lines across unconstrained space. These assumptions are often unrealistic in ecological systems where sites differ in size or influence and where coastlines, mountains, lakes, or fragmented habitats constrain movement and access.
+Many ecological and social–ecological analyses require dividing space into zones of influence around point locations such as settlements, sampling sites, nests, or service centres. A common mathematical tool for this purpose is a Voronoi tessellation [@okabe2000spatial], which partitions space so that every location is assigned to its nearest generator point. However, standard Voronoi tessellations assume that all generators have equal importance and that distance is measured in straight lines across unconstrained space. These assumptions are often unrealistic in ecological systems where sites differ in size or influence and where coastlines, mountains, lakes, or fragmented habitats constrain movement and access.
 
 `weightedVoronoi` is an R package that generates multiplicatively weighted tessellations within arbitrary polygonal domains under either Euclidean or domain-constrained geodesic distance metrics. Geodesic distances may optionally incorporate resistance surfaces, enabling terrain-aware spatial allocation. The package produces complete, connected tessellations that conform to irregular boundaries and returns diagnostic outputs to support reproducible ecological spatial analysis.
 
@@ -27,9 +27,9 @@ Many ecological and social–ecological analyses require dividing space into zon
 
 Ecological spatial allocation problems commonly involve assigning land cover, environmental variables, or management responsibilities to settlements, communities, or sampling sites. In such contexts, allocation must often account for:
 
-1. heterogeneous generator importance (e.g., population size, sampling effort, service capacity),
-2. irregular or concave spatial domains (e.g., protected areas, coastlines, fragmented habitats),
-3. non-Euclidean accessibility shaped by barriers or terrain.
+1. Heterogeneous generator importance (e.g., population size, sampling effort, service capacity),
+2. Irregular or concave spatial domains (e.g., protected areas, coastlines, fragmented habitats),
+3. Non-Euclidean accessibility shaped by barriers or terrain.
 
 Straight-line distance may misrepresent ecological interaction or accessibility in mountainous regions, island systems, or landscapes fragmented by unsuitable habitat. While researchers can compute least-cost or constrained distances, translating these into complete spatial partitions typically requires bespoke workflows.
 
@@ -37,9 +37,9 @@ Straight-line distance may misrepresent ecological interaction or accessibility 
 
 # State of the Field
 
-Unweighted Voronoi tessellations are available in R through packages such as `deldir`, and planar tessellation utilities are included in spatial point-pattern frameworks such as `spatstat`. These tools generally assume Euclidean distance and do not integrate multiplicative generator weighting within arbitrary polygonal domains. 
+Unweighted Voronoi tessellations are available in R through packages such as `deldir` [@turner2019deldir], and planar tessellation utilities are included in spatial point-pattern frameworks such as `spatstat` [@baddeley2015spatstat]. These tools generally assume Euclidean distance and do not integrate multiplicative generator weighting within arbitrary polygonal domains. 
 
-Grid-based shortest-path and least-cost distances can be computed using `gdistance`, but this functionality is not packaged as a complete tessellation framework and does not automatically produce spatial partitions or enforce connectivity constraints. In practice, researchers often combine multiple tools or rely on proprietary geographic information system software to implement weighted or constrained tessellations.
+Grid-based shortest-path and least-cost distances can be computed using `gdistance` [@vanetten2017gdistance], but this functionality is not packaged as a complete tessellation framework and does not automatically produce spatial partitions or enforce connectivity constraints. In practice, researchers often combine multiple tools or rely on proprietary geographic information system software to implement weighted or constrained tessellations.
 
 `weightedVoronoi` differs by integrating multiplicative weighting, arbitrary polygonal domain constraints, optional resistance-modified geodesic distance, automated enforcement of single connected regions per generator, and structured diagnostics within a single open-source R workflow. This integration provides functionality not simultaneously available in existing R spatial packages.
 
@@ -47,17 +47,19 @@ Grid-based shortest-path and least-cost distances can be computed using `gdistan
 
 The package is implemented in R (version 1.0.0) and builds on open-source spatial infrastructure including `sf` for vector data handling [@pebesma2018sf], `terra` for raster operations [@hijmans2025terra], and optionally `gdistance` for graph-based shortest-path computation on grids [@vanetten2017gdistance].
 
-A raster-based architecture was chosen to allow tessellations within complex, concave, or fragmented domains and to enable geodesic and resistance-aware distance calculations. While analytic Voronoi constructions are efficient in unconstrained planar settings, they are less flexible for arbitrary polygonal masks and non-Euclidean distances. The raster approach provides geometric generality at the cost of resolution-dependent computation time.
+A raster-based architecture was chosen to allow tessellations within complex, concave, or fragmented domains and to enable geodesic and resistance-aware distance calculations. While analytic Voronoi constructions are efficient in unconstrained planar settings, they are less flexible for arbitrary polygonal masks and non-Euclidean distances [@okabe2000spatial]. The raster approach provides geometric generality at the cost of resolution-dependent computation time.
 
 The core function, `weighted_voronoi_domain()`, accepts generator points with weights, a polygonal boundary, a raster resolution, a weight transformation function, and a distance mode. Allocation follows a multiplicative rule in which each raster cell is assigned to the generator minimizing weighted distance. Post-processing enforces single connected regions per generator and fills unreachable cells in geodesic mode to guarantee complete domain coverage.
 
 This design prioritizes transparency, reproducibility, and flexibility for ecological applications where boundary geometry and accessibility constraints are central.
 
+![Example weighted Euclidean and geodesic tessellations within a constrained spatial domain.](inst/figures/fig-main.png)
+
 # Research Impact Statement
 
-The package provides fully reproducible workflows, example vignettes, and unit tests to support immediate application in ecological research. It is distributed under the MIT license and archived with a versioned DOI to facilitate citation and reuse.
+The package is released under the MIT license and archived with a versioned Zenodo DOI to ensure long-term reproducibility and citability. It includes unit tests (`testthat`), continuous integration via automated R-CMD-check workflows, and reproducible example vignettes to support research-ready deployment from the initial release. 
 
-The software has been developed in the context of ecological spatial allocation problems and is designed to support applications including settlement boundary approximation, landscape-level influence modelling, and terrain-aware accessibility analysis. By integrating weighting, boundary constraints, and geodesic distance within a single workflow, the package reduces reliance on ad hoc scripting or proprietary software and promotes reproducible ecological spatial modelling.
+The deterministic allocation algorithm ensures identical outputs given identical inputs and resolution, facilitating reproducible spatial analysis. By integrating weighted allocation, domain constraints, and geodesic distance within a single documented workflow, the package provides a research-grade alternative to ad hoc scripting or proprietary geographic information system implementations.
 
 # Example
 
