@@ -18,13 +18,25 @@ Tools for weighted spatial tessellation using Euclidean and geodesic distances w
 knitr::include_graphics("man/figures/animation-euclidean.gif")
 ```
 
+## Key Features
+1) Weighted Euclidean and geodesic tessellations inside arbitrary polygon domains
+
+2) Flexible weight models via weight_model and (optionally) weight_power
+
+3) Custom resistance surfaces via resistance_rast
+
+4) User-side barriers (raster or vector lines/polygons) via add_barriers()
+
+5) Resistance composition from multiple rasters via compose_resistance()
+
 ## Installation
 ```r
 install.packages(“remotes”)
-
 remotes::install_github(“HarriRaven/weightedVoronoi”)
 
-library(sf) library(weightedVoronoi)
+library(sf)
+library(terra)
+library(weightedVoronoi)
 ```
 ### Use a projected CRS (units in metres)
 ```r
@@ -71,6 +83,8 @@ out_euc <- weighted_voronoi_domain(
   res = 20,
   weight_transform = log10,
   distance = "euclidean",
+  # optional: alternative weight behaviour
+  weight_model = "multiplicative",
   verbose = FALSE
 )
 ```
@@ -90,19 +104,59 @@ out_geo <- weighted_voronoi_domain(
 )
 ```
 
-##### Terrain-aware tessellations
+### Custom Resistance and Barriers
+
+Build a resistance surface on the same grid, optionally combine layers, then apply barriers before running a geodesic tessellation.
+
+```r
+# Use the Euclidean allocation grid as a convenient template
+template <- out_euc$allocation
+
+# Base resistance (all 1)
+R <- template
+terra::values(R) <- 1
+
+# Add a high-friction vertical band (e.g., dense vegetation)
+xy <- terra::xyFromCell(R, 1:terra::ncell(R))
+band <- xy[,1] > 450 & xy[,1] < 550
+vals <- terra::values(R)
+vals[band] <- 25
+terra::values(R) <- vals
+
+# Add a semi-permeable river barrier (vector line)
+river <- st_sf(
+  geometry = st_sfc(st_linestring(rbind(c(500, 0), c(500, 1000)))),
+  crs = st_crs(boundary_sf)
+)
+
+# Tip: for coarse rasters, use width ~ res/2 or res
+R2 <- add_barriers(R, river, permeability = "semi", cost_multiplier = 20, width = 20)
+
+out_geo_res <- weighted_voronoi_domain(
+  points_sf = points_sf,
+  weight_col = "population",
+  boundary_sf = boundary_sf,
+  res = 20,
+  weight_transform = log10,
+  distance = "geodesic",
+  resistance_rast = R2,
+  verbose = FALSE
+)
+```
+
+#### Terrain-aware tessellations
 
 `weightedVoronoi` supports geodesic tessellations that incorporate environmental
 resistance. When supplied with an elevation raster, distances are modified using
 Tobler’s hiking function, allowing topography to influence spatial allocation.
 
-###### Flat domain (no resistance)
+##### Flat domain (no resistance)
 
 ```{r fig-flat-3d, echo=FALSE, out.width="100%"}
 knitr::include_graphics("man/figures/fig-flat-3d.png")
 ```
 
-###### Elevation-dependent resistance
+##### Elevation-dependent resistance
 
 ```{r fig-dem-3d, echo=FALSE, out.width="100%"}
 knitr::include_graphics("man/figures/fig-dem-3d.png")
@@ -151,7 +205,7 @@ bibentry(
   title = "weightedVoronoi: Weighted Spatial Tessellations Using Euclidean and Geodesic Distances",
   author = person("Harri", "Ravenscroft"),
   year = "2026",
-  note = "R package version 0.1.0",
+  note = "R package version 1.1.0",
   url = "https://github.com/HarriRaven/weightedVoronoi"
 )
 ```

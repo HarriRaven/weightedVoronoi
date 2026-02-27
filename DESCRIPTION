@@ -13,10 +13,7 @@ Encoding: UTF-8
 Roxygen: list(markdown = TRUE)
 RoxygenNote: 7.3.3
 Suggests: 
-    dplyr,
-    gdistance,
     knitr,
-    raster,
     rmarkdown,
     testthat (>= 3.0.0)
 Config/testthat/edition: 3
@@ -25,4 +22,8 @@ Imports:
     methods,
     sf,
     stats,
-    terra
+    terra,
+    dplyr,
+    gdistance,
+    raster
+

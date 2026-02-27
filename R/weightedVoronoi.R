@@ -1,3 +1,259 @@
+.effective_cost <- function(d, w, weight_model = c("multiplicative", "power", "additive"), weight_power = 1) {
+  weight_model <- match.arg(weight_model)
+  
+  if (!is.finite(w) || w <= 0) stop("Weights must be finite and > 0.")
+  if (weight_model == "power" && (!is.finite(weight_power) || weight_power <= 0)) {
+    stop("weight_power must be finite and > 0 when weight_model='power'.")
+  }
+  
+  if (weight_model == "multiplicative") {
+    return(d / w)
+  }
+  if (weight_model == "power") {
+    return((d ^ weight_power) / w)
+  }
+  # additive
+  return(d + (1 / w))
+}
+
+.prep_resistance <- function(mask_r,
+                             resistance_rast = NULL,
+                             dem_rast = NULL,
+                             use_tobler = TRUE,
+                             tobler_v0_kmh = 6,
+                             tobler_a = 3.5,
+                             tobler_b = 0.05,
+                             min_speed_kmh = 0.25) {
+  # Default: uniform resistance (=1) across the domain mask
+  resistance <- mask_r
+  terra::values(resistance) <- 1
+  
+  # 1) User-supplied resistance takes priority
+  if (!is.null(resistance_rast)) {
+    if (!inherits(resistance_rast, "SpatRaster")) stop("resistance_rast must be a terra SpatRaster.")
+    rr <- resistance_rast
+    
+    # Align CRS and grid to the mask raster
+    if (!identical(terra::crs(rr, proj = TRUE), terra::crs(mask_r, proj = TRUE))) {
+      rr <- terra::project(rr, mask_r)
+    }
+    rr <- terra::resample(rr, mask_r, method = "bilinear")
+    rr <- terra::mask(rr, mask_r)
+    
+    # Validate positivity
+    bad <- terra::global(rr <= 0, "sum", na.rm = TRUE)[1, 1]
+    if (is.finite(bad) && bad > 0) stop("resistance_rast must be strictly > 0 within the domain.")
+    return(rr)
+  }
+  
+  # 2) Otherwise DEM -> Tobler (if DEM is supplied)
+  if (!is.null(dem_rast)) {
+    if (!inherits(dem_rast, "SpatRaster")) stop("dem_rast must be a terra SpatRaster.")
+    if (!use_tobler) stop("dem_rast provided but use_tobler=FALSE; supply resistance_rast instead.")
+    
+    return(.tobler_resistance_from_dem(
+      dem_rast = dem_rast,
+      mask_r = mask_r,
+      v0_kmh = tobler_v0_kmh,
+      a = tobler_a,
+      b = tobler_b,
+      min_speed_kmh = min_speed_kmh
+    ))
+  }
+  
+  resistance
+}
+
+#' Compose a resistance surface from multiple raster layers
+#'
+#' Aligns one or more `terra::SpatRaster` layers to a common template (CRS, resolution,
+#' extent) and combines them into a single resistance raster using a specified rule.
+#' Intended for building `resistance_rast` inputs for geodesic tessellations.
+#'
+#' @param ... One or more `terra::SpatRaster` layers. All layers must represent strictly
+#'   positive resistance values.
+#' @param template Optional `terra::SpatRaster` defining the target grid (CRS, resolution,
+#'   extent). Defaults to the first layer.
+#' @param mask Optional mask applied after alignment. Can be a `terra::SpatRaster`,
+#'   `terra::SpatVector`, or `sf` polygon.
+#' @param method How to combine layers: `"multiply"` (default), `"add"`, or `"max"`.
+#' @param resample_method Resampling method used when aligning layers: `"bilinear"` for
+#'   continuous resistance, `"near"` for categorical rasters.
+#' @param na_policy How to treat NA values: `"propagate"` makes any NA propagate to the
+#'   output; `"ignore"` drops NAs (neutral element for the chosen method).
+#'
+#' @return A `terra::SpatRaster` resistance surface on the template grid.
+#' @export
+#'
+#' @examples
+#' \dontrun{
+#' R <- compose_resistance(slope_resistance, landcover_resistance, method = "multiply")
+#' R <- add_barriers(R, rivers_sf, permeability = "semi", cost_multiplier = 20, width = 30)
+#' out <- weighted_voronoi_domain(points_sf, "w", boundary_sf, distance = "geodesic",
+#'                                resistance_rast = R)
+#' }
+compose_resistance <- function(...,
+                               template = NULL,
+                               mask = NULL,
+                               method = c("multiply", "add", "max"),
+                               resample_method = c("bilinear", "near"),
+                               na_policy = c("propagate", "ignore")) {
+  
+  method <- match.arg(method)
+  resample_method <- match.arg(resample_method)
+  na_policy <- match.arg(na_policy)
+  
+  layers <- list(...)
+  layers <- layers[!vapply(layers, is.null, logical(1))]
+  if (length(layers) < 1) stop("Provide at least one SpatRaster layer.")
+  if (!all(vapply(layers, inherits, logical(1), "SpatRaster"))) {
+    stop("All inputs to compose_resistance() must be terra SpatRaster objects.")
+  }
+  
+  if (is.null(template)) template <- layers[[1]]
+  
+  align1 <- function(x) {
+    if (!identical(terra::crs(x, proj = TRUE), terra::crs(template, proj = TRUE))) {
+      x <- terra::project(x, template)
+    }
+    x <- terra::resample(x, template, method = resample_method)
+    
+    if (!is.null(mask)) {
+      # mask can be SpatRaster or SpatVector/sf polygon
+      x <- terra::mask(x, mask)
+    }
+    x
+  }
+  
+  aligned <- lapply(layers, align1)
+  S <- terra::rast(aligned)
+  
+  fun <- switch(
+    method,
+    multiply = function(...) {
+      v <- c(...)
+      if (na_policy == "propagate" && anyNA(v)) return(NA_real_)
+      if (na_policy == "ignore") v <- v[!is.na(v)]
+      if (!length(v)) return(NA_real_)
+      prod(v)
+    },
+    add = function(...) {
+      v <- c(...)
+      if (na_policy == "propagate" && anyNA(v)) return(NA_real_)
+      if (na_policy == "ignore") v <- v[!is.na(v)]
+      if (!length(v)) return(NA_real_)
+      sum(v)
+    },
+    max = function(...) {
+      v <- c(...)
+      if (na_policy == "propagate" && anyNA(v)) return(NA_real_)
+      if (na_policy == "ignore") v <- v[!is.na(v)]
+      if (!length(v)) return(NA_real_)
+      max(v)
+    }
+  )
+  
+  out <- terra::app(S, fun = fun)
+  
+  # Validate and enforce strictly positive
+  bad <- terra::global(out <= 0, "sum", na.rm = TRUE)[1, 1]
+  if (is.finite(bad) && bad > 0) {
+    # either stop or clamp; I'd default to stop for scientific correctness
+    stop("Composed resistance has values <= 0. Ensure all layers are strictly > 0.")
+  }
+  
+  out
+}
+
+.barrier_mask_raster <- function(barriers,
+                                 template_rast,
+                                 width = 0) {
+  if (!inherits(template_rast, "SpatRaster")) stop("template_rast must be a terra SpatRaster.")
+  
+  # If barriers is already a raster, align it and convert to mask
+  if (inherits(barriers, "SpatRaster")) {
+    b <- barriers
+    if (!identical(terra::crs(b, proj = TRUE), terra::crs(template_rast, proj = TRUE))) {
+      b <- terra::project(b, template_rast)
+    }
+    b <- terra::resample(b, template_rast, method = "near")
+    # Anything >0 treated as barrier
+    m <- terra::ifel(b > 0, 1, 0)
+    return(m)
+  }
+  
+  # Convert sf -> SpatVector
+  if (inherits(barriers, "sf")) {
+    barriers <- terra::vect(barriers)
+  }
+  if (!inherits(barriers, "SpatVector")) {
+    stop("barriers must be a SpatRaster, sf object, or terra SpatVector.")
+  }
+  
+  # Reproject vector to template CRS if needed
+  bcrs <- terra::crs(barriers, proj = TRUE)
+  tcrs <- terra::crs(template_rast, proj = TRUE)
+  if (!identical(bcrs, tcrs)) {
+    barriers <- terra::project(barriers, tcrs)
+  }
+  
+  # Optional buffering of line features to ensure they hit raster cells
+  if (!is.null(width) && is.finite(width) && width > 0) {
+    barriers <- terra::buffer(barriers, width = width)
+  }
+  
+  # Rasterise to mask (1 where barrier exists)
+  m <- terra::rasterize(barriers, template_rast, field = 1, background = 0, touches = TRUE)
+  m <- terra::ifel(m >= 1, 1, 0)
+  m
+}
+
+#' Add barriers to a resistance surface
+#'
+#' Modifies a resistance raster by applying semi-permeable or impermeable barriers
+#' provided as a raster mask (values > 0 treated as barrier) or as vector features
+#' (sf / SpatVector) rasterised onto the resistance grid.
+#'
+#' @param resistance terra::SpatRaster of strictly positive movement resistance.
+#' @param barriers A terra::SpatRaster mask (values > 0 treated as barrier), or
+#'   an sf/SpatVector LINESTRING/POLYGON object.
+#' @param permeability One of "semi", "impermeable", "permeable".
+#' @param cost_multiplier Numeric > 0. Multiplier applied where barrier present
+#'   (for "semi" and "permeable").
+#' @param width Buffer distance (CRS units) applied to vector barriers before rasterising.
+#' @return A terra::SpatRaster resistance surface with barrier effects applied.
+#' @export
+
+add_barriers <- function(resistance,
+                         barriers,
+                         permeability = c("semi", "impermeable", "permeable"),
+                         cost_multiplier = 10,
+                         width = 0) {
+  
+  if (!inherits(resistance, "SpatRaster")) stop("resistance must be a terra SpatRaster.")
+  permeability <- match.arg(permeability)
+  
+  if (!is.finite(cost_multiplier) || cost_multiplier <= 0) {
+    stop("cost_multiplier must be finite and > 0.")
+  }
+  
+  mask <- .barrier_mask_raster(barriers, template_rast = resistance, width = width)
+  
+  out <- resistance
+  
+  if (permeability == "permeable") {
+    # small friction increase (still useful to let users mark features)
+    out <- terra::ifel(mask == 1, out * max(1, cost_multiplier), out)
+  } else if (permeability == "semi") {
+    out <- terra::ifel(mask == 1, out * cost_multiplier, out)
+  } else {
+    # impermeable: encode as infinite resistance
+    out <- terra::ifel(mask == 1, Inf, out)
+  }
+  
+  out
+}
+
 build_summary <- function(polygons_sf,
                           allocation_rast,
                           points_sf_used,
@@ -204,11 +460,8 @@ remove_islands <- function(ID, points_sf, min_cells = 5, max_iter_fill = 50) {
       keep_patch <- fr$value[1]
     }
     
-    # Remove ALL other components (enforces "no islands")
-    drop_patches <- fr$value[fr$value != keep_patch]
-    
-    # If you prefer to only remove small islands, use:
-    # drop_patches <- fr$value[fr$value != keep_patch & fr$count < min_cells]
+    # Remove small disconnected components (keeps large secondary components)
+    drop_patches <- fr$value[fr$value != keep_patch & fr$count < min_cells]
     
     if (length(drop_patches)) {
       ID2 <- terra::ifel(p %in% drop_patches, NA, ID2)
@@ -255,6 +508,10 @@ remove_islands <- function(ID, points_sf, min_cells = 5, max_iter_fill = 50) {
 #' @param boundary Optional `sf` polygon defining the tessellation domain. Used when `template_rast` is `NULL`.
 #' @param template_rast Optional `terra::SpatRaster` template raster. Provide this instead of `boundary` + `res`.
 #' @param method Character. Allocation method; one of `"argmin"` or `"partition"`.
+#' @param weight_model Character. One of "multiplicative", "power", or "additive".
+#'   Controls how distances and weights combine into effective cost.
+#' @param weight_power Numeric > 0. Only used when weight_model = "power".
+#'   Controls the distance exponent.
 
 
 weighted_voronoi <- function(points_sf,
@@ -263,6 +520,8 @@ weighted_voronoi <- function(points_sf,
                              template_rast = NULL,   # terra SpatRaster (optional)
                              res = NULL,             # numeric; only used if boundary is provided
                              weight_transform = function(w) w,
+                             weight_model = c("multiplicative", "power", "additive"),
+                             weight_power = 1,
                              method = c("argmin", "partition"),
                              max_dist = NULL,
                              verbose = TRUE,
@@ -270,6 +529,10 @@ weighted_voronoi <- function(points_sf,
                              island_fill_iter = 50) {
   
   method <- match.arg(method)
+  weight_model <- match.arg(weight_model)
+  if (!is.finite(weight_power) || weight_power <= 0) {
+    stop("weight_power must be finite and > 0.")
+  }
   
   if (!requireNamespace("terra", quietly = TRUE)) stop("Install terra.")
   if (!requireNamespace("sf", quietly = TRUE)) stop("Install sf.")
@@ -338,14 +601,15 @@ weighted_voronoi <- function(points_sf,
     di <- terra::distance(r, pts_v[i])
     if (!is.null(max_dist)) di <- terra::clamp(di, upper = max_dist, values = TRUE)
     
-    Ei <- di / w[i]
+    Ei <- .effective_cost(di, w[i], weight_model = weight_model, weight_power = weight_power)
     upd <- Ei < E
     E  <- terra::ifel(upd, Ei, E)
     ID <- terra::ifel(upd, i,  ID)
   }
   
   if (method == "argmin") {
-    return(list(allocation = ID, cost_surface = E, weights = w, weights_raw = w_raw))
+    return(list(allocation = ID, cost_surface = E, weights = w, weights_raw = w_raw, weight_model = weight_model,
+                weight_power = weight_power))
   }
   
   # ---- Partition-based output + island removal ----
@@ -359,27 +623,17 @@ weighted_voronoi <- function(points_sf,
   )
   
   # Polygonise
-  poly <- terra::as.polygons(ID, dissolve = TRUE, values = TRUE, na.rm = TRUE)
+  poly <- terra::as.polygons(ID_clean, dissolve = TRUE, values = TRUE, na.rm = TRUE)
   poly_sf <- sf::st_as_sf(poly)
-  if (!is.null(boundary_use)) sf::st_crs(poly_sf) <- sf::st_crs(boundary_use)
-  names(poly_sf)[names(poly_sf) == names(ID)] <- "generator_id"
+  names(poly_sf)[names(poly_sf) != "geometry"] <- "generator_id"
   
-  # Ensure CRS is carried through (terra->sf can drop it on some setups)
-  sf::st_crs(poly_sf) <- sf::st_crs(boundary_use)
-  
-  
-  # ---- NEW: hard clip to boundary for exact edge matching ----
+  cr <- terra::crs(r, proj = TRUE)
   if (!is.null(boundary_use)) {
-    poly_sf <- sf::st_make_valid(poly_sf)
-    
-    # Intersection can split features; clip then dissolve back to one per generator_id
-    poly_sf <- sf::st_intersection(poly_sf, boundary_use)
-    
-    poly_sf <- poly_sf |>
-      dplyr::group_by(generator_id) |>
-      dplyr::summarise(dplyr::across(dplyr::everything(), ~ .x[1]), do_union = TRUE) |>
-      dplyr::ungroup()
+    sf::st_crs(poly_sf) <- sf::st_crs(boundary_use)
+  } else if (!is.na(cr) && nzchar(cr)) {
+    sf::st_crs(poly_sf) <- sf::st_crs(cr)
   }
+  
   
   # Attach weights + original point attributes
   poly_sf$weight <- w[poly_sf$generator_id]
@@ -392,7 +646,9 @@ weighted_voronoi <- function(points_sf,
     allocation = ID_clean,
     cost_surface = E,
     weights = w,
-    weights_raw = w_raw
+    weights_raw = w_raw,
+    weight_model = weight_model,
+    weight_power = weight_power
   ))
 }
 
@@ -404,20 +660,29 @@ weighted_voronoi <- function(points_sf,
 #' Distances are calculated as shortest-path distances through a rasterised domain mask.
 #'
 #' @inheritParams weighted_voronoi_domain
+#' @param weight_model Character. One of "multiplicative", "power", or "additive".
+#'   Controls how distances and weights combine into effective cost.
+#' @param weight_power Numeric > 0. Only used when weight_model = "power".
+#'   Controls the distance exponent.
 #' @return A list containing polygon output, allocation raster, and weights.
 #' @export
 
 weighted_voronoi_geodesic <- function(points_sf, weight_col, boundary_sf,
                                       res = 20,
                                       weight_transform = function(w) w,
+                                      weight_model = c("multiplicative", "power", "additive"),
+                                      weight_power = 1,
                                       close_mask = TRUE,
                                       close_iters = 1,
+                                      resistance_rast = NULL,
                                       dem_rast = NULL,
                                       use_tobler = TRUE,
                                       tobler_v0_kmh = 6,
                                       tobler_a = 3.5,
                                       tobler_b = 0.05,
                                       min_speed_kmh = 0.25,
+                                      island_min_cells = 5,
+                                      island_fill_iter = 50,
                                       verbose = TRUE) {
   
   if (!requireNamespace("gdistance", quietly = TRUE)) stop("Install gdistance.")
@@ -460,27 +725,24 @@ weighted_voronoi_geodesic <- function(points_sf, weight_col, boundary_sf,
   w <- weight_transform(w_raw)
   if (any(!is.finite(w)) || any(w <= 0)) stop("Weights must be finite and > 0.")
   
-  # --- resistance surface (seconds per metre) ---
-  # Default: uniform resistance (= 1) if no DEM supplied
-  resistance <- r
-  terra::values(resistance) <- 1
+  weight_model <- match.arg(weight_model)
+  if (!is.finite(weight_power) || weight_power <= 0) stop("weight_power must be finite and > 0.")
   
-  if (!is.null(dem_rast)) {
-    if (!inherits(dem_rast, "SpatRaster")) stop("dem_rast must be a terra SpatRaster.")
-    if (!use_tobler) stop("dem_rast provided but use_tobler=FALSE; no alternative implemented yet.")
-    
-    resistance <- .tobler_resistance_from_dem(
-      dem_rast = dem_rast,
-      mask_r = r,
-      v0_kmh = tobler_v0_kmh,
-      a = tobler_a,
-      b = tobler_b,
-      min_speed_kmh = min_speed_kmh
-    )
-  }
+  # --- resistance surface (>0), aligned to mask ---
+  resistance <- .prep_resistance(
+    mask_r = r,
+    resistance_rast = resistance_rast,
+    dem_rast = dem_rast,
+    use_tobler = use_tobler,
+    tobler_v0_kmh = tobler_v0_kmh,
+    tobler_a = tobler_a,
+    tobler_b = tobler_b,
+    min_speed_kmh = min_speed_kmh
+  )
   
   # Convert resistance -> conductance internally for gdistance
   cond <- 1 / resistance
+  cond[!is.finite(cond)] <- 0
   
   # --- conductance surface for gdistance ---
   r_in <- raster::raster(cond)
@@ -505,7 +767,7 @@ weighted_voronoi_geodesic <- function(points_sf, weight_col, boundary_sf,
     # Unreachable from this point => Inf (cannot win)
     d_i[is.na(d_i)] <- Inf
     
-    cost_list[[i]] <- d_i / w[i]
+    cost_list[[i]] <- .effective_cost(d_i, w[i], weight_model = weight_model, weight_power = weight_power)
   }
   
   S <- terra::rast(cost_list)
@@ -550,15 +812,22 @@ weighted_voronoi_geodesic <- function(points_sf, weight_col, boundary_sf,
     ID <- terra::ifel(is.na(ID), neigh, ID)
   }
   
-  # Enforce point-cell ownership + remove islands (your existing helpers)
+  # Enforce point-cell ownership
   ID <- force_points_to_own_cell(ID, points_sf)
-  ID <- remove_islands(ID, points_sf)
   
-  # Polygonise
-  poly <- terra::as.polygons(ID, dissolve = TRUE, values = TRUE, na.rm = TRUE)
+  # Remove disconnected islands / small patches
+  ID_clean <- remove_islands(
+    ID,
+    points_sf = points_sf,
+    min_cells = island_min_cells,
+    max_iter_fill = island_fill_iter
+  )
+  
+  # Polygonise from cleaned allocation (consistency with Euclidean)
+  poly <- terra::as.polygons(ID_clean, dissolve = TRUE, values = TRUE, na.rm = TRUE)
   poly_sf <- sf::st_as_sf(poly)
   sf::st_crs(poly_sf) <- sf::st_crs(boundary_sf)
-  names(poly_sf)[names(poly_sf) == names(ID)] <- "generator_id"
+  names(poly_sf)[names(poly_sf) != "geometry"] <- "generator_id"
   
   # Attach attributes
   poly_sf$weight <- w[poly_sf$generator_id]
@@ -568,7 +837,7 @@ weighted_voronoi_geodesic <- function(points_sf, weight_col, boundary_sf,
   
   list(
     polygons = poly_sf,
-    allocation = ID,
+    allocation = ID_clean,
     weights = w,
     weights_raw = w_raw,
     unreachable = all_unreachable,
@@ -609,6 +878,11 @@ weighted_voronoi_geodesic <- function(points_sf, weight_col, boundary_sf,
 #' @param tobler_b Tobler slope multiplier (default 0.05).
 #' @param min_speed_kmh Minimum allowed speed to avoid infinite costs.
 #' @param verbose Logical. If `TRUE`, prints progress.
+#' @param resistance_rast Optional SpatRaster giving movement resistance (>0). Overrides dem_rast/Tobler when provided.
+#' @param weight_model Character. One of "multiplicative", "power", or "additive".
+#'   Controls how distances and weights combine into effective cost.
+#' @param weight_power Numeric > 0. Only used when weight_model = "power".
+#'   Controls the distance exponent.
 #' 
 #' @details
 #' When `distance = "geodesic"`, distances are computed as shortest paths
@@ -652,6 +926,8 @@ weighted_voronoi_domain <- function(points_sf,
                                     boundary_sf,
                                     res = 20,
                                     weight_transform = function(w) w,
+                                    weight_model = c("multiplicative", "power", "additive"),
+                                    weight_power = 1,
                                     distance = c("euclidean", "geodesic"),
                                     # Euclidean options
                                     max_dist = NULL,
@@ -661,6 +937,7 @@ weighted_voronoi_domain <- function(points_sf,
                                     # Geodesic options
                                     close_mask = TRUE,
                                     close_iters = 1,
+                                    resistance_rast = NULL,
                                     dem_rast = NULL,
                                     use_tobler = TRUE,
                                     tobler_v0_kmh = 6,
@@ -671,6 +948,9 @@ weighted_voronoi_domain <- function(points_sf,
                                     verbose = TRUE) {
   
   distance <- match.arg(distance)
+  
+  weight_model <- match.arg(weight_model)
+  if (!is.finite(weight_power) || weight_power <= 0) stop("weight_power must be finite and > 0.")
   
   if (!requireNamespace("sf", quietly = TRUE)) stop("Install sf.")
   if (!requireNamespace("terra", quietly = TRUE)) stop("Install terra.")
@@ -696,6 +976,8 @@ weighted_voronoi_domain <- function(points_sf,
       boundary = boundary_sf,
       res = res,
       weight_transform = weight_transform,
+      weight_model = weight_model,
+      weight_power = weight_power,
       method = "partition",
       max_dist = max_dist,
       verbose = verbose,
@@ -703,28 +985,23 @@ weighted_voronoi_domain <- function(points_sf,
       island_fill_iter = island_fill_iter
     )
     
-    # Optional exact clip (for perfect edge match in comparisons)
     if (clip_to_boundary && !is.null(boundary_sf)) {
       poly_sf <- sf::st_make_valid(out$polygons)
       b <- sf::st_make_valid(boundary_sf)
       
       poly_sf <- sf::st_intersection(poly_sf, b)
-      
-      # If intersection produced nothing (rare), stop early with a clear message
       if (nrow(poly_sf) == 0) stop("Clipping produced 0 polygons. Check boundary CRS/validity.")
       
-      gids <- sort(unique(poly_sf$generator_id))
+      # Dissolve back to one feature per generator_id, KEEPING attributes
+      poly_sf <- poly_sf |>
+        dplyr::group_by(generator_id) |>
+        dplyr::summarise(
+          dplyr::across(dplyr::where(~ !inherits(.x, "sfc")), \(z) z[1]),
+          do_union = TRUE
+        ) |>
+        dplyr::ungroup()
       
-      geoms <- lapply(gids, function(g) {
-        u <- sf::st_union(sf::st_geometry(poly_sf[poly_sf$generator_id == g, , drop = FALSE]))
-        # st_union returns an sfc of length 1; extract the single sfg:
-        u[[1]]
-      })
-      
-      out$polygons <- sf::st_sf(
-        generator_id = gids,
-        geometry = sf::st_sfc(geoms, crs = sf::st_crs(poly_sf))
-      )
+      out$polygons <- poly_sf
     }
     
     
@@ -749,12 +1026,16 @@ weighted_voronoi_domain <- function(points_sf,
       extra = list(
         island_min_cells = island_min_cells,
         island_fill_iter = island_fill_iter,
-        clip_to_boundary = clip_to_boundary
+        clip_to_boundary = clip_to_boundary,
+        weight_model = weight_model,
+        weight_power = weight_power
       )
     )
     
     return(list(
       method = "euclidean",
+      weight_model = weight_model,
+      weight_power = weight_power,
       polygons = out$polygons,
       allocation = out$allocation,
       cost_surface = out$cost_surface,
@@ -772,14 +1053,19 @@ weighted_voronoi_domain <- function(points_sf,
     boundary_sf = boundary_sf,
     res = res,
     weight_transform = weight_transform,
+    weight_model = weight_model,
+    weight_power = weight_power,
     close_mask = close_mask,
     close_iters = close_iters,
     dem_rast = dem_rast,
+    resistance_rast = resistance_rast,
     use_tobler = use_tobler,
     tobler_v0_kmh = tobler_v0_kmh,
     tobler_a = tobler_a,
     tobler_b = tobler_b,
     min_speed_kmh = min_speed_kmh,
+    island_min_cells = island_min_cells,
+    island_fill_iter = island_fill_iter,
     verbose = verbose
   )
   
@@ -814,7 +1100,13 @@ weighted_voronoi_domain <- function(points_sf,
       tobler_v0_kmh = tobler_v0_kmh,
       tobler_a = tobler_a,
       tobler_b = tobler_b,
-      min_speed_kmh = min_speed_kmh
+      min_speed_kmh = min_speed_kmh,
+      weight_model = weight_model,
+      weight_power = weight_power,
+      island_min_cells = island_min_cells,
+      island_fill_iter = island_fill_iter,
+      resistance_rast_supplied = !is.null(resistance_rast),
+      dem_rast_supplied = !is.null(dem_rast)
     )
   )
   
@@ -826,7 +1118,9 @@ weighted_voronoi_domain <- function(points_sf,
     weights_raw = out$weights_raw,
     unreachable = out$unreachable,
     summary = summary_tbl,
-    diagnostics = diagnostics
+    diagnostics = diagnostics,
+    weight_model = weight_model,
+    weight_power = weight_power
   )
 }
 
