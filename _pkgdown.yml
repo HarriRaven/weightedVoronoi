@@ -26,11 +26,13 @@ home:
     href: https://github.com/HarriRaven/weightedVoronoi
 
 reference:
-- title: Main function
-  contents:
-  - weighted_voronoi_domain
+  - title: "Core tessellation"
+    contents:
+      - weighted_voronoi_domain
+      - weighted_voronoi
+      - weighted_voronoi_geodesic
 
-- title: Engines
-  contents:
-  - weighted_voronoi
-  - weighted_voronoi_geodesic
+  - title: "Resistance and barriers"
+    contents:
+      - compose_resistance
+      - add_barriers

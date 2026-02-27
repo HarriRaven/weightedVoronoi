@@ -9,7 +9,7 @@ Distances are calculated as shortest-path distances through a rasterised domain 
 
     <a class="navbar-brand me-2" href="../index.html">weightedVoronoi</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.1.0</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">1.1.0</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -49,14 +49,19 @@ Distances are calculated as shortest-path distances through a rasterised domain 
 <span>  <span class="va">boundary_sf</span>,</span>
 <span>  res <span class="op">=</span> <span class="fl">20</span>,</span>
 <span>  weight_transform <span class="op">=</span> <span class="kw">function</span><span class="op">(</span><span class="va">w</span><span class="op">)</span> <span class="va">w</span>,</span>
+<span>  weight_model <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"multiplicative"</span>, <span class="st">"power"</span>, <span class="st">"additive"</span><span class="op">)</span>,</span>
+<span>  weight_power <span class="op">=</span> <span class="fl">1</span>,</span>
 <span>  close_mask <span class="op">=</span> <span class="cn">TRUE</span>,</span>
 <span>  close_iters <span class="op">=</span> <span class="fl">1</span>,</span>
+<span>  resistance_rast <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  dem_rast <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  use_tobler <span class="op">=</span> <span class="cn">TRUE</span>,</span>
 <span>  tobler_v0_kmh <span class="op">=</span> <span class="fl">6</span>,</span>
 <span>  tobler_a <span class="op">=</span> <span class="fl">3.5</span>,</span>
 <span>  tobler_b <span class="op">=</span> <span class="fl">0.05</span>,</span>
 <span>  min_speed_kmh <span class="op">=</span> <span class="fl">0.25</span>,</span>
+<span>  island_min_cells <span class="op">=</span> <span class="fl">5</span>,</span>
+<span>  island_fill_iter <span class="op">=</span> <span class="fl">50</span>,</span>
 <span>  verbose <span class="op">=</span> <span class="cn">TRUE</span></span>
 <span><span class="op">)</span></span></code></pre></div>
     </div>
@@ -86,6 +91,16 @@ Distances are calculated as shortest-path distances through a rasterised domain 
 finite, strictly positive values.</p></dd>
 
 
+<dt id="arg-weight-model">weight_model<a class="anchor" aria-label="anchor" href="#arg-weight-model"></a></dt>
+<dd><p>Character. One of "multiplicative", "power", or "additive".
+Controls how distances and weights combine into effective cost.</p></dd>
+
+
+<dt id="arg-weight-power">weight_power<a class="anchor" aria-label="anchor" href="#arg-weight-power"></a></dt>
+<dd><p>Numeric &gt; 0. Only used when weight_model = "power".
+Controls the distance exponent.</p></dd>
+
+
 <dt id="arg-close-mask">close_mask<a class="anchor" aria-label="anchor" href="#arg-close-mask"></a></dt>
 <dd><p>Logical. If <code>TRUE</code>, applies a morphological closing to the raster
 mask (geodesic only).</p></dd>
@@ -93,6 +108,10 @@ mask (geodesic only).</p></dd>
 
 <dt id="arg-close-iters">close_iters<a class="anchor" aria-label="anchor" href="#arg-close-iters"></a></dt>
 <dd><p>Integer. Number of closing iterations (geodesic only).</p></dd>
+
+
+<dt id="arg-resistance-rast">resistance_rast<a class="anchor" aria-label="anchor" href="#arg-resistance-rast"></a></dt>
+<dd><p>Optional SpatRaster giving movement resistance (&gt;0). Overrides dem_rast/Tobler when provided.</p></dd>
 
 
 <dt id="arg-dem-rast">dem_rast<a class="anchor" aria-label="anchor" href="#arg-dem-rast"></a></dt>
@@ -119,6 +138,14 @@ slope into isotropic movement cost.</p></dd>
 
 <dt id="arg-min-speed-kmh">min_speed_kmh<a class="anchor" aria-label="anchor" href="#arg-min-speed-kmh"></a></dt>
 <dd><p>Minimum allowed speed to avoid infinite costs.</p></dd>
+
+
+<dt id="arg-island-min-cells">island_min_cells<a class="anchor" aria-label="anchor" href="#arg-island-min-cells"></a></dt>
+<dd><p>Integer. Minimum patch size used in island removal.</p></dd>
+
+
+<dt id="arg-island-fill-iter">island_fill_iter<a class="anchor" aria-label="anchor" href="#arg-island-fill-iter"></a></dt>
+<dd><p>Integer. Maximum iterations for filling reassigned cells.</p></dd>
 
 
 <dt id="arg-verbose">verbose<a class="anchor" aria-label="anchor" href="#arg-verbose"></a></dt>

@@ -9,7 +9,7 @@ Euclidean tessellation on a rasterised domain."></head><body>
 
     <a class="navbar-brand me-2" href="../index.html">weightedVoronoi</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.1.0</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">1.1.0</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -50,6 +50,8 @@ Euclidean tessellation on a rasterised domain.</p>
 <span>  template_rast <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  res <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  weight_transform <span class="op">=</span> <span class="kw">function</span><span class="op">(</span><span class="va">w</span><span class="op">)</span> <span class="va">w</span>,</span>
+<span>  weight_model <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"multiplicative"</span>, <span class="st">"power"</span>, <span class="st">"additive"</span><span class="op">)</span>,</span>
+<span>  weight_power <span class="op">=</span> <span class="fl">1</span>,</span>
 <span>  method <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"argmin"</span>, <span class="st">"partition"</span><span class="op">)</span>,</span>
 <span>  max_dist <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  verbose <span class="op">=</span> <span class="cn">TRUE</span>,</span>
@@ -85,6 +87,16 @@ Euclidean tessellation on a rasterised domain.</p>
 <dt id="arg-weight-transform">weight_transform<a class="anchor" aria-label="anchor" href="#arg-weight-transform"></a></dt>
 <dd><p>Function. Transforms weights before allocation. Must return
 finite, strictly positive values.</p></dd>
+
+
+<dt id="arg-weight-model">weight_model<a class="anchor" aria-label="anchor" href="#arg-weight-model"></a></dt>
+<dd><p>Character. One of "multiplicative", "power", or "additive".
+Controls how distances and weights combine into effective cost.</p></dd>
+
+
+<dt id="arg-weight-power">weight_power<a class="anchor" aria-label="anchor" href="#arg-weight-power"></a></dt>
+<dd><p>Numeric &gt; 0. Only used when weight_model = "power".
+Controls the distance exponent.</p></dd>
 
 
 <dt id="arg-method">method<a class="anchor" aria-label="anchor" href="#arg-method"></a></dt>

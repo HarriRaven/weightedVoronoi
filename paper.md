@@ -53,7 +53,6 @@ The core function, `weighted_voronoi_domain()`, accepts generator points with we
 
 This design prioritizes transparency, reproducibility, and flexibility for ecological applications where boundary geometry and accessibility constraints are central.
 
-![Example weighted Euclidean and geodesic tessellations within a constrained spatial domain.](inst/figures/fig-main.png)
 
 # Research Impact Statement
 

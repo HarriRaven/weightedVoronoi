@@ -23,7 +23,7 @@
 
     <a class="navbar-brand me-2" href="index.html">weightedVoronoi</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.1.0</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">1.1.0</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -57,13 +57,25 @@
 <p>🌐 Website: <a href="https://HarriRaven.github.io/weightedVoronoi/" class="uri">https://HarriRaven.github.io/weightedVoronoi/</a></p>
 <p><img src="reference/figures/animation-euclidean.gif" alt="" width="100%"></p>
 <div class="section level2">
+<h2 id="key-features">Key Features<a class="anchor" aria-label="anchor" href="#key-features"></a>
+</h2>
+<ol style="list-style-type: decimal">
+<li><p>Weighted Euclidean and geodesic tessellations inside arbitrary polygon domains</p></li>
+<li><p>Flexible weight models via weight_model and (optionally) weight_power</p></li>
+<li><p>Custom resistance surfaces via resistance_rast</p></li>
+<li><p>User-side barriers (raster or vector lines/polygons) via add_barriers()</p></li>
+<li><p>Resistance composition from multiple rasters via compose_resistance()</p></li>
+</ol>
+</div>
+<div class="section level2">
 <h2 id="installation">Installation<a class="anchor" aria-label="anchor" href="#installation"></a>
 </h2>
 <div class="sourceCode" id="cb1"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb1-1"><a href="#cb1-1" tabindex="-1"></a><span class="fu">install.packages</span>(“remotes”)</span>
-<span id="cb1-2"><a href="#cb1-2" tabindex="-1"></a></span>
-<span id="cb1-3"><a href="#cb1-3" tabindex="-1"></a>remotes<span class="sc">::</span><span class="fu">install_github</span>(“HarriRaven<span class="sc">/</span>weightedVoronoi”)</span>
-<span id="cb1-4"><a href="#cb1-4" tabindex="-1"></a></span>
-<span id="cb1-5"><a href="#cb1-5" tabindex="-1"></a><span class="fu">library</span>(sf) <span class="fu">library</span>(weightedVoronoi)</span></code></pre></div>
+<span id="cb1-2"><a href="#cb1-2" tabindex="-1"></a>remotes<span class="sc">::</span><span class="fu">install_github</span>(“HarriRaven<span class="sc">/</span>weightedVoronoi”)</span>
+<span id="cb1-3"><a href="#cb1-3" tabindex="-1"></a></span>
+<span id="cb1-4"><a href="#cb1-4" tabindex="-1"></a><span class="fu">library</span>(sf)</span>
+<span id="cb1-5"><a href="#cb1-5" tabindex="-1"></a><span class="fu">library</span>(terra)</span>
+<span id="cb1-6"><a href="#cb1-6" tabindex="-1"></a><span class="fu">library</span>(weightedVoronoi)</span></code></pre></div>
 <div class="section level3">
 <h3 id="use-a-projected-crs-units-in-metres">Use a projected CRS (units in metres)<a class="anchor" aria-label="anchor" href="#use-a-projected-crs-units-in-metres"></a>
 </h3>
@@ -73,9 +85,9 @@
 <h3 id="domain-polygon-simple-rectangle-for-speed">Domain polygon (simple rectangle for speed)<a class="anchor" aria-label="anchor" href="#domain-polygon-simple-rectangle-for-speed"></a>
 </h3>
 <div class="sourceCode" id="cb3"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="va">boundary_sf</span> <span class="op">&lt;-</span> <span class="fu">st_sf</span><span class="op">(</span></span>
-<span>  geometry <span class="op">=</span> <span class="fu">st_sfc</span><span class="op">(</span></span>
-<span>    <span class="fu">st_polygon</span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/cbind.html" class="external-link">rbind</a></span><span class="op">(</span></span>
+<code class="sourceCode R"><span><span class="va">boundary_sf</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://r-spatial.github.io/sf/reference/sf.html" class="external-link">st_sf</a></span><span class="op">(</span></span>
+<span>  geometry <span class="op">=</span> <span class="fu"><a href="https://r-spatial.github.io/sf/reference/sfc.html" class="external-link">st_sfc</a></span><span class="op">(</span></span>
+<span>    <span class="fu"><a href="https://r-spatial.github.io/sf/reference/st.html" class="external-link">st_polygon</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/cbind.html" class="external-link">rbind</a></span><span class="op">(</span></span>
 <span>      <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">0</span>, <span class="fl">0</span><span class="op">)</span>,</span>
 <span>      <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">1000</span>, <span class="fl">0</span><span class="op">)</span>,</span>
 <span>      <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">1000</span>, <span class="fl">1000</span><span class="op">)</span>,</span>
@@ -90,15 +102,15 @@
 <h3 id="generator-points-with-weights">Generator points with weights<a class="anchor" aria-label="anchor" href="#generator-points-with-weights"></a>
 </h3>
 <div class="sourceCode" id="cb4"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="va">points_sf</span> <span class="op">&lt;-</span> <span class="fu">st_sf</span><span class="op">(</span></span>
+<code class="sourceCode R"><span><span class="va">points_sf</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://r-spatial.github.io/sf/reference/sf.html" class="external-link">st_sf</a></span><span class="op">(</span></span>
 <span>  village <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/paste.html" class="external-link">paste0</a></span><span class="op">(</span><span class="st">"V"</span>, <span class="fl">1</span><span class="op">:</span><span class="fl">5</span><span class="op">)</span>,</span>
 <span>  population <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">50</span>, <span class="fl">200</span>, <span class="fl">1000</span>, <span class="fl">150</span>, <span class="fl">400</span><span class="op">)</span>,</span>
-<span>  geometry <span class="op">=</span> <span class="fu">st_sfc</span><span class="op">(</span></span>
-<span>    <span class="fu">st_point</span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">200</span>, <span class="fl">200</span><span class="op">)</span><span class="op">)</span>,</span>
-<span>    <span class="fu">st_point</span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">800</span>, <span class="fl">250</span><span class="op">)</span><span class="op">)</span>,</span>
-<span>    <span class="fu">st_point</span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">500</span>, <span class="fl">500</span><span class="op">)</span><span class="op">)</span>,</span>
-<span>    <span class="fu">st_point</span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">250</span>, <span class="fl">800</span><span class="op">)</span><span class="op">)</span>,</span>
-<span>    <span class="fu">st_point</span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">750</span>, <span class="fl">750</span><span class="op">)</span><span class="op">)</span></span>
+<span>  geometry <span class="op">=</span> <span class="fu"><a href="https://r-spatial.github.io/sf/reference/sfc.html" class="external-link">st_sfc</a></span><span class="op">(</span></span>
+<span>    <span class="fu"><a href="https://r-spatial.github.io/sf/reference/st.html" class="external-link">st_point</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">200</span>, <span class="fl">200</span><span class="op">)</span><span class="op">)</span>,</span>
+<span>    <span class="fu"><a href="https://r-spatial.github.io/sf/reference/st.html" class="external-link">st_point</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">800</span>, <span class="fl">250</span><span class="op">)</span><span class="op">)</span>,</span>
+<span>    <span class="fu"><a href="https://r-spatial.github.io/sf/reference/st.html" class="external-link">st_point</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">500</span>, <span class="fl">500</span><span class="op">)</span><span class="op">)</span>,</span>
+<span>    <span class="fu"><a href="https://r-spatial.github.io/sf/reference/st.html" class="external-link">st_point</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">250</span>, <span class="fl">800</span><span class="op">)</span><span class="op">)</span>,</span>
+<span>    <span class="fu"><a href="https://r-spatial.github.io/sf/reference/st.html" class="external-link">st_point</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">750</span>, <span class="fl">750</span><span class="op">)</span><span class="op">)</span></span>
 <span>  <span class="op">)</span>,</span>
 <span>  crs <span class="op">=</span> <span class="va">crs_use</span></span>
 <span><span class="op">)</span></span></code></pre></div>
@@ -113,6 +125,8 @@
 <span>  res <span class="op">=</span> <span class="fl">20</span>,</span>
 <span>  weight_transform <span class="op">=</span> <span class="va">log10</span>,</span>
 <span>  distance <span class="op">=</span> <span class="st">"euclidean"</span>,</span>
+<span>  <span class="co"># optional: alternative weight behaviour</span></span>
+<span>  weight_model <span class="op">=</span> <span class="st">"multiplicative"</span>,</span>
 <span>  verbose <span class="op">=</span> <span class="cn">FALSE</span></span>
 <span><span class="op">)</span></span></code></pre></div>
 </div>
@@ -131,27 +145,66 @@
 <span>  close_iters <span class="op">=</span> <span class="fl">1</span>,</span>
 <span>  verbose <span class="op">=</span> <span class="cn">FALSE</span></span>
 <span><span class="op">)</span></span></code></pre></div>
-<div class="section level5">
-<h5 id="terrain-aware-tessellations">Terrain-aware tessellations<a class="anchor" aria-label="anchor" href="#terrain-aware-tessellations"></a>
-</h5>
+</div>
+</div>
+<div class="section level3">
+<h3 id="custom-resistance-and-barriers">Custom Resistance and Barriers<a class="anchor" aria-label="anchor" href="#custom-resistance-and-barriers"></a>
+</h3>
+<p>Build a resistance surface on the same grid, optionally combine layers, then apply barriers before running a geodesic tessellation.</p>
+<div class="sourceCode" id="cb7"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="co"># Use the Euclidean allocation grid as a convenient template</span></span>
+<span><span class="va">template</span> <span class="op">&lt;-</span> <span class="va">out_euc</span><span class="op">$</span><span class="va">allocation</span></span>
+<span></span>
+<span><span class="co"># Base resistance (all 1)</span></span>
+<span><span class="va">R</span> <span class="op">&lt;-</span> <span class="va">template</span></span>
+<span><span class="fu">terra</span><span class="fu">::</span><span class="fu"><a href="https://rspatial.github.io/terra/reference/values.html" class="external-link">values</a></span><span class="op">(</span><span class="va">R</span><span class="op">)</span> <span class="op">&lt;-</span> <span class="fl">1</span></span>
+<span></span>
+<span><span class="co"># Add a high-friction vertical band (e.g., dense vegetation)</span></span>
+<span><span class="va">xy</span> <span class="op">&lt;-</span> <span class="fu">terra</span><span class="fu">::</span><span class="fu"><a href="https://rspatial.github.io/terra/reference/xyCellFrom.html" class="external-link">xyFromCell</a></span><span class="op">(</span><span class="va">R</span>, <span class="fl">1</span><span class="op">:</span><span class="fu">terra</span><span class="fu">::</span><span class="fu"><a href="https://rspatial.github.io/terra/reference/dimensions.html" class="external-link">ncell</a></span><span class="op">(</span><span class="va">R</span><span class="op">)</span><span class="op">)</span></span>
+<span><span class="va">band</span> <span class="op">&lt;-</span> <span class="va">xy</span><span class="op">[</span>,<span class="fl">1</span><span class="op">]</span> <span class="op">&gt;</span> <span class="fl">450</span> <span class="op">&amp;</span> <span class="va">xy</span><span class="op">[</span>,<span class="fl">1</span><span class="op">]</span> <span class="op">&lt;</span> <span class="fl">550</span></span>
+<span><span class="va">vals</span> <span class="op">&lt;-</span> <span class="fu">terra</span><span class="fu">::</span><span class="fu"><a href="https://rspatial.github.io/terra/reference/values.html" class="external-link">values</a></span><span class="op">(</span><span class="va">R</span><span class="op">)</span></span>
+<span><span class="va">vals</span><span class="op">[</span><span class="va">band</span><span class="op">]</span> <span class="op">&lt;-</span> <span class="fl">25</span></span>
+<span><span class="fu">terra</span><span class="fu">::</span><span class="fu"><a href="https://rspatial.github.io/terra/reference/values.html" class="external-link">values</a></span><span class="op">(</span><span class="va">R</span><span class="op">)</span> <span class="op">&lt;-</span> <span class="va">vals</span></span>
+<span></span>
+<span><span class="co"># Add a semi-permeable river barrier (vector line)</span></span>
+<span><span class="va">river</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://r-spatial.github.io/sf/reference/sf.html" class="external-link">st_sf</a></span><span class="op">(</span></span>
+<span>  geometry <span class="op">=</span> <span class="fu"><a href="https://r-spatial.github.io/sf/reference/sfc.html" class="external-link">st_sfc</a></span><span class="op">(</span><span class="fu"><a href="https://r-spatial.github.io/sf/reference/st.html" class="external-link">st_linestring</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/cbind.html" class="external-link">rbind</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">500</span>, <span class="fl">0</span><span class="op">)</span>, <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">500</span>, <span class="fl">1000</span><span class="op">)</span><span class="op">)</span><span class="op">)</span><span class="op">)</span>,</span>
+<span>  crs <span class="op">=</span> <span class="fu"><a href="https://r-spatial.github.io/sf/reference/st_crs.html" class="external-link">st_crs</a></span><span class="op">(</span><span class="va">boundary_sf</span><span class="op">)</span></span>
+<span><span class="op">)</span></span>
+<span></span>
+<span><span class="co"># Tip: for coarse rasters, use width ~ res/2 or res</span></span>
+<span><span class="va">R2</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/add_barriers.html">add_barriers</a></span><span class="op">(</span><span class="va">R</span>, <span class="va">river</span>, permeability <span class="op">=</span> <span class="st">"semi"</span>, cost_multiplier <span class="op">=</span> <span class="fl">20</span>, width <span class="op">=</span> <span class="fl">20</span><span class="op">)</span></span>
+<span></span>
+<span><span class="va">out_geo_res</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/weighted_voronoi_domain.html">weighted_voronoi_domain</a></span><span class="op">(</span></span>
+<span>  points_sf <span class="op">=</span> <span class="va">points_sf</span>,</span>
+<span>  weight_col <span class="op">=</span> <span class="st">"population"</span>,</span>
+<span>  boundary_sf <span class="op">=</span> <span class="va">boundary_sf</span>,</span>
+<span>  res <span class="op">=</span> <span class="fl">20</span>,</span>
+<span>  weight_transform <span class="op">=</span> <span class="va">log10</span>,</span>
+<span>  distance <span class="op">=</span> <span class="st">"geodesic"</span>,</span>
+<span>  resistance_rast <span class="op">=</span> <span class="va">R2</span>,</span>
+<span>  verbose <span class="op">=</span> <span class="cn">FALSE</span></span>
+<span><span class="op">)</span></span></code></pre></div>
+<div class="section level4">
+<h4 id="terrain-aware-tessellations">Terrain-aware tessellations<a class="anchor" aria-label="anchor" href="#terrain-aware-tessellations"></a>
+</h4>
 <p><code>weightedVoronoi</code> supports geodesic tessellations that incorporate environmental resistance. When supplied with an elevation raster, distances are modified using Tobler’s hiking function, allowing topography to influence spatial allocation.</p>
-<div class="section level6">
-<h6 id="flat-domain-no-resistance">Flat domain (no resistance)<a class="anchor" aria-label="anchor" href="#flat-domain-no-resistance"></a>
-</h6>
+<div class="section level5">
+<h5 id="flat-domain-no-resistance">Flat domain (no resistance)<a class="anchor" aria-label="anchor" href="#flat-domain-no-resistance"></a>
+</h5>
 <p><img src="reference/figures/fig-flat-3d.png" alt="" width="100%"></p>
 </div>
-<div class="section level6">
-<h6 id="elevation-dependent-resistance">Elevation-dependent resistance<a class="anchor" aria-label="anchor" href="#elevation-dependent-resistance"></a>
-</h6>
+<div class="section level5">
+<h5 id="elevation-dependent-resistance">Elevation-dependent resistance<a class="anchor" aria-label="anchor" href="#elevation-dependent-resistance"></a>
+</h5>
 <p><img src="reference/figures/fig-dem-3d.png" alt="" width="100%"></p>
-</div>
 </div>
 </div>
 </div>
 <div class="section level3">
 <h3 id="inspect-outputs">Inspect outputs<a class="anchor" aria-label="anchor" href="#inspect-outputs"></a>
 </h3>
-<div class="sourceCode" id="cb7"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb8"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/base/names.html" class="external-link">names</a></span><span class="op">(</span><span class="va">out_euc</span><span class="op">)</span></span>
 <span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/utils/head.html" class="external-link">head</a></span><span class="op">(</span><span class="va">out_euc</span><span class="op">$</span><span class="va">summary</span><span class="op">)</span></span>
@@ -179,10 +232,23 @@
 <li><p>res controls the raster resolution and therefore the trade-off between speed and boundary fidelity.</p></li>
 <li><p>Geodesic tessellations are typically slower than Euclidean tessellations because shortest-path distances are computed within the domain.</p></li>
 </ul>
-<p>Citation</p>
-<p>If you use weightedVoronoi, please cite the associated software note.</p>
+<div class="section level2">
+<h2 id="citation">Citation<a class="anchor" aria-label="anchor" href="#citation"></a>
+</h2>
+<p>If you use weightedVoronoi, please cite the associated software note:</p>
+<div class="sourceCode" id="cb9"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/utils/bibentry.html" class="external-link">bibentry</a></span><span class="op">(</span></span>
+<span>  bibtype <span class="op">=</span> <span class="st">"Manual"</span>,</span>
+<span>  title <span class="op">=</span> <span class="st">"weightedVoronoi: Weighted Spatial Tessellations Using Euclidean and Geodesic Distances"</span>,</span>
+<span>  author <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/utils/person.html" class="external-link">person</a></span><span class="op">(</span><span class="st">"Harri"</span>, <span class="st">"Ravenscroft"</span><span class="op">)</span>,</span>
+<span>  year <span class="op">=</span> <span class="st">"2026"</span>,</span>
+<span>  note <span class="op">=</span> <span class="st">"R package version 1.1.0"</span>,</span>
+<span>  url <span class="op">=</span> <span class="st">"https://github.com/HarriRaven/weightedVoronoi"</span></span>
+<span><span class="op">)</span></span></code></pre></div>
 <!-- badges: start -->
 
+<!-- badges: end -->
+</div>
 </div>
 
   </main><aside class="col-md-3"><div class="links">

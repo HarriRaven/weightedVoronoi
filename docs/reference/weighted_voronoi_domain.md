@@ -15,6 +15,8 @@ weighted_voronoi_domain(
   boundary_sf,
   res = 20,
   weight_transform = function(w) w,
+  weight_model = c("multiplicative", "power", "additive"),
+  weight_power = 1,
   distance = c("euclidean", "geodesic"),
   max_dist = NULL,
   island_min_cells = 5,
@@ -22,6 +24,7 @@ weighted_voronoi_domain(
   clip_to_boundary = TRUE,
   close_mask = TRUE,
   close_iters = 1,
+  resistance_rast = NULL,
   dem_rast = NULL,
   use_tobler = TRUE,
   tobler_v0_kmh = 6,
@@ -55,6 +58,16 @@ weighted_voronoi_domain(
   Function. Transforms weights before allocation. Must return finite,
   strictly positive values.
 
+- weight_model:
+
+  Character. One of "multiplicative", "power", or "additive". Controls
+  how distances and weights combine into effective cost.
+
+- weight_power:
+
+  Numeric \> 0. Only used when weight_model = "power". Controls the
+  distance exponent.
+
 - distance:
 
   Character. One of `"euclidean"` or `"geodesic"`.
@@ -85,6 +98,11 @@ weighted_voronoi_domain(
 - close_iters:
 
   Integer. Number of closing iterations (geodesic only).
+
+- resistance_rast:
+
+  Optional SpatRaster giving movement resistance (\>0). Overrides
+  dem_rast/Tobler when provided.
 
 - dem_rast:
 
