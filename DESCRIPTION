@@ -1,6 +1,7 @@
 Package: weightedVoronoi
 Title: Weighted Spatial Tessellations in Constrained Polygon Domains
-Version: 1.0.0
+Version: 1.1.0
+Depends: R (>= 4.1.0)
 Release date: 03/02/2026
 Authors@R: 
     person("Harri", "Ravenscroft", , "harri.ravenscroft@hotmail.co.uk", role = c("aut", "cre"))

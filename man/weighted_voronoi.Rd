@@ -11,6 +11,8 @@ weighted_voronoi(
   template_rast = NULL,
   res = NULL,
   weight_transform = function(w) w,
+  weight_model = c("multiplicative", "power", "additive"),
+  weight_power = 1,
   method = c("argmin", "partition"),
   max_dist = NULL,
   verbose = TRUE,
@@ -31,6 +33,12 @@ weighted_voronoi(
 
 \item{weight_transform}{Function. Transforms weights before allocation. Must return
 finite, strictly positive values.}
+
+\item{weight_model}{Character. One of "multiplicative", "power", or "additive".
+Controls how distances and weights combine into effective cost.}
+
+\item{weight_power}{Numeric > 0. Only used when weight_model = "power".
+Controls the distance exponent.}
 
 \item{method}{Character. Allocation method; one of \code{"argmin"} or \code{"partition"}.}
 

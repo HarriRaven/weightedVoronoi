@@ -10,14 +10,19 @@ weighted_voronoi_geodesic(
   boundary_sf,
   res = 20,
   weight_transform = function(w) w,
+  weight_model = c("multiplicative", "power", "additive"),
+  weight_power = 1,
   close_mask = TRUE,
   close_iters = 1,
+  resistance_rast = NULL,
   dem_rast = NULL,
   use_tobler = TRUE,
   tobler_v0_kmh = 6,
   tobler_a = 3.5,
   tobler_b = 0.05,
   min_speed_kmh = 0.25,
+  island_min_cells = 5,
+  island_fill_iter = 50,
   verbose = TRUE
 )
 }
@@ -33,10 +38,18 @@ weighted_voronoi_geodesic(
 \item{weight_transform}{Function. Transforms weights before allocation. Must return
 finite, strictly positive values.}
 
+\item{weight_model}{Character. One of "multiplicative", "power", or "additive".
+Controls how distances and weights combine into effective cost.}
+
+\item{weight_power}{Numeric > 0. Only used when weight_model = "power".
+Controls the distance exponent.}
+
 \item{close_mask}{Logical. If \code{TRUE}, applies a morphological closing to the raster
 mask (geodesic only).}
 
 \item{close_iters}{Integer. Number of closing iterations (geodesic only).}
+
+\item{resistance_rast}{Optional SpatRaster giving movement resistance (>0). Overrides dem_rast/Tobler when provided.}
 
 \item{dem_rast}{Optional SpatRaster providing elevation or resistance surface.
 Must align with the tessellation domain and resolution.}
@@ -51,6 +64,10 @@ slope into isotropic movement cost.}
 \item{tobler_b}{Tobler slope multiplier (default 0.05).}
 
 \item{min_speed_kmh}{Minimum allowed speed to avoid infinite costs.}
+
+\item{island_min_cells}{Integer. Minimum patch size used in island removal.}
+
+\item{island_fill_iter}{Integer. Maximum iterations for filling reassigned cells.}
 
 \item{verbose}{Logical. If \code{TRUE}, prints progress.}
 }
