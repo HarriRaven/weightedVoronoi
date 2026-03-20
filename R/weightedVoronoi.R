@@ -275,8 +275,8 @@ build_summary <- function(polygons_sf,
   total_area <- sum(area_m2)
   
   # --- polygon centroid per generator_id (use representative point to avoid centroids outside concave polys) ---
-  rep_pts <- sf::st_point_on_surface(polygons_sf)
-  coords <- sf::st_coordinates(rep_pts)
+  rep_geom <- sf::st_point_on_surface(sf::st_geometry(polygons_sf))
+  coords <- sf::st_coordinates(rep_geom)
   # average reps if split features exist
   cx <- tapply(coords[,1], gid, mean, simplify = TRUE)
   cy <- tapply(coords[,2], gid, mean, simplify = TRUE)
@@ -664,6 +664,10 @@ weighted_voronoi <- function(points_sf,
 #'   Controls how distances and weights combine into effective cost.
 #' @param weight_power Numeric > 0. Only used when weight_model = "power".
 #'   Controls the distance exponent.
+#' @param geodesic_engine Character. Geodesic allocation engine; one of
+#'   `"classic"` or `"multisource"`.
+#' @param return_polygons Logical. If `TRUE`, polygonise the cleaned allocation
+#'   raster and attach point attributes. If `FALSE`, return allocation outputs only.
 #' @return A list containing polygon output, allocation raster, and weights.
 #' @export
 
@@ -681,14 +685,22 @@ weighted_voronoi_geodesic <- function(points_sf, weight_col, boundary_sf,
                                       tobler_a = 3.5,
                                       tobler_b = 0.05,
                                       min_speed_kmh = 0.25,
+                                      anisotropy = c("none", "terrain"),
+                                      uphill_factor = 1,
+                                      downhill_factor = 1,
                                       island_min_cells = 5,
                                       island_fill_iter = 50,
+                                      geodesic_engine = c("classic", "multisource"),
+                                      return_polygons = TRUE,
                                       verbose = TRUE) {
   
   if (!requireNamespace("gdistance", quietly = TRUE)) stop("Install gdistance.")
   if (!requireNamespace("raster", quietly = TRUE)) stop("Install raster.")
   if (!requireNamespace("terra", quietly = TRUE)) stop("Install terra.")
   if (!requireNamespace("sf", quietly = TRUE)) stop("Install sf.")
+  
+  anisotropy <- match.arg(anisotropy)
+  geodesic_engine <- match.arg(geodesic_engine)
   
   # --- CRS / validity ---
   if (sf::st_is_longlat(points_sf)) stop("Project to a metric CRS first.")
@@ -706,19 +718,12 @@ weighted_voronoi_geodesic <- function(points_sf, weight_col, boundary_sf,
   if (nrow(points_sf) == 0) stop("No points remain inside the boundary.")
   
   # --- raster template + mask ---
-  bnd_v <- terra::vect(boundary_sf)
-  r <- terra::rast(ext = terra::ext(bnd_v), resolution = res, crs = terra::crs(bnd_v))
-  r <- terra::setValues(r, 1)
-  r <- terra::mask(r, bnd_v)
-  
-  # Optional: close tiny gaps in the raster mask (connectivity fix)
-  if (close_mask) {
-    m <- !is.na(r)
-    for (k in seq_len(close_iters)) {
-      m <- terra::focal(m, w = matrix(1, 3, 3), fun = max, na.policy = "omit", fillvalue = 0)
-    }
-    r <- terra::ifel(m == 1, 1, NA)
-  }
+  r <- .build_domain_mask(
+    boundary_sf = boundary_sf,
+    res = res,
+    close_mask = close_mask,
+    close_iters = close_iters
+  )
   
   # --- weights ---
   w_raw <- as.numeric(points_sf[[weight_col]])
@@ -728,112 +733,91 @@ weighted_voronoi_geodesic <- function(points_sf, weight_col, boundary_sf,
   weight_model <- match.arg(weight_model)
   if (!is.finite(weight_power) || weight_power <= 0) stop("weight_power must be finite and > 0.")
   
-  # --- resistance surface (>0), aligned to mask ---
-  resistance <- .prep_resistance(
-    mask_r = r,
-    resistance_rast = resistance_rast,
-    dem_rast = dem_rast,
-    use_tobler = use_tobler,
-    tobler_v0_kmh = tobler_v0_kmh,
-    tobler_a = tobler_a,
-    tobler_b = tobler_b,
-    min_speed_kmh = min_speed_kmh
-  )
-  
-  # Convert resistance -> conductance internally for gdistance
-  cond <- 1 / resistance
-  cond[!is.finite(cond)] <- 0
-  
-  # --- conductance surface for gdistance ---
-  r_in <- raster::raster(cond)
-  
-  # Transition: mean conductance between neighboring cells
-  tr <- gdistance::transition(r_in, transitionFunction = mean, directions = 8)
-  tr <- gdistance::geoCorrection(tr, type = "c")
-  
-  
-  pts_sp <- methods::as(points_sf, "Spatial")
-  
-  # --- build weighted geodesic cost stack ---
-  cost_list <- vector("list", nrow(points_sf))
-  for (i in seq_len(nrow(points_sf))) {
-    if (verbose && (i == 1 || i == nrow(points_sf) || i %% 10 == 0)) {
-      message(sprintf("Geodesic distances: %d / %d", i, nrow(points_sf)))
+  # --- transition object ---
+  if (anisotropy == "none") {
+    resistance <- .prep_resistance(
+      mask_r = r,
+      resistance_rast = resistance_rast,
+      dem_rast = dem_rast,
+      use_tobler = use_tobler,
+      tobler_v0_kmh = tobler_v0_kmh,
+      tobler_a = tobler_a,
+      tobler_b = tobler_b,
+      min_speed_kmh = min_speed_kmh
+    )
+    
+    tr <- .build_isotropic_transition(resistance)
+    
+  } else if (anisotropy == "terrain") {
+    
+    if (is.null(dem_rast)) {
+      stop("anisotropy = 'terrain' requires dem_rast.")
     }
     
-    d_i <- gdistance::accCost(tr, pts_sp[i, ])  # RasterLayer
-    d_i <- terra::rast(d_i)                     # SpatRaster
-    
-    # Unreachable from this point => Inf (cannot win)
-    d_i[is.na(d_i)] <- Inf
-    
-    cost_list[[i]] <- .effective_cost(d_i, w[i], weight_model = weight_model, weight_power = weight_power)
-  }
-  
-  S <- terra::rast(cost_list)
-  
-  # Cells unreachable from ALL points (all Inf)
-  min_cost <- terra::app(S, fun = function(...) {
-    vals <- c(...)
-    vals <- vals[is.finite(vals)]
-    if (!length(vals)) return(Inf)
-    min(vals)
-  })
-  all_unreachable <- is.infinite(min_cost)
-  
-  # Initial geodesic allocation
-  ID <- terra::which.min(S)
-  
-  # Mark unreachable cells as NA (purely geodesic behaviour)
-  ID <- terra::ifel(all_unreachable, NA, ID)
-  
-  # --- Fill unreachable cells locally (still "geodesic-consistent") ---
-  # mode1 must exist in your environment
-  for (k in seq_len(100)) {
-    n_na <- terra::global(is.na(ID), "sum", na.rm = TRUE)[1, 1]
-    if (is.na(n_na) || n_na == 0) break
-    
-    neigh <- terra::focal(ID, w = matrix(1, 3, 3), fun = mode1,
-                          na.policy = "omit", fillvalue = NA)
-    ID <- terra::ifel(is.na(ID), neigh, ID)
-  }
-  # Final safety net: iterative neighbor fill (version-safe)
-  for (k in seq_len(200)) {
-    n_na <- terra::global(is.na(ID), "sum", na.rm = TRUE)[1, 1]
-    if (is.na(n_na) || n_na == 0) break
-    
-    neigh <- terra::focal(
-      ID,
-      w = matrix(1, 3, 3),
-      fun = mode1,
-      na.policy = "omit",
-      fillvalue = NA
+    tr <- .build_terrain_anisotropic_transition(
+      dem_rast = dem_rast,
+      mask_r = r,
+      uphill_factor = uphill_factor,
+      downhill_factor = downhill_factor,
+      v0_kmh = tobler_v0_kmh,
+      a = tobler_a,
+      b = tobler_b,
+      min_speed_kmh = min_speed_kmh
     )
-    ID <- terra::ifel(is.na(ID), neigh, ID)
   }
   
-  # Enforce point-cell ownership
-  ID <- force_points_to_own_cell(ID, points_sf)
+  if (geodesic_engine == "classic") {
+    engine_out <- .compute_geodesic_allocation_classic(
+      tr = tr,
+      points_sf = points_sf,
+      weight_vec = w,
+      weight_model = weight_model,
+      weight_power = weight_power,
+      template_rast = r,
+      verbose = verbose
+    )
+  } else if (geodesic_engine == "multisource") {
+    engine_out <- .compute_geodesic_allocation_multisource(
+      tr = tr,
+      points_sf = points_sf,
+      weight_vec = w,
+      weight_model = weight_model,
+      weight_power = weight_power,
+      template_rast = r,
+      anisotropy = anisotropy,
+      verbose = verbose
+    )
+  }
   
-  # Remove disconnected islands / small patches
-  ID_clean <- remove_islands(
-    ID,
+  ID <- engine_out$allocation
+  all_unreachable <- engine_out$unreachable
+  
+  # Fill local gaps, enforce point ownership, remove islands
+  ID_clean <- .postprocess_allocation(
+    ID = ID,
     points_sf = points_sf,
-    min_cells = island_min_cells,
-    max_iter_fill = island_fill_iter
+    island_min_cells = island_min_cells,
+    island_fill_iter = island_fill_iter,
+    fill_iter = 300
   )
   
-  # Polygonise from cleaned allocation (consistency with Euclidean)
-  poly <- terra::as.polygons(ID_clean, dissolve = TRUE, values = TRUE, na.rm = TRUE)
-  poly_sf <- sf::st_as_sf(poly)
-  sf::st_crs(poly_sf) <- sf::st_crs(boundary_sf)
-  names(poly_sf)[names(poly_sf) != "geometry"] <- "generator_id"
+  names(ID_clean) <- "allocation"
   
-  # Attach attributes
-  poly_sf$weight <- w[poly_sf$generator_id]
-  pts_df <- sf::st_drop_geometry(points_sf)
-  pts_df$generator_id <- seq_len(nrow(points_sf))
-  poly_sf <- merge(poly_sf, pts_df, by = "generator_id", all.x = TRUE)
+  poly_sf <- NULL
+  
+  if (return_polygons) {
+    # Polygonise from cleaned allocation
+    poly <- terra::as.polygons(ID_clean, dissolve = TRUE, values = TRUE, na.rm = TRUE)
+    poly_sf <- sf::st_as_sf(poly)
+    sf::st_crs(poly_sf) <- sf::st_crs(boundary_sf)
+    names(poly_sf)[names(poly_sf) != "geometry"] <- "generator_id"
+    
+    # Attach attributes
+    poly_sf$weight <- w[poly_sf$generator_id]
+    pts_df <- sf::st_drop_geometry(points_sf)
+    pts_df$generator_id <- seq_len(nrow(points_sf))
+    poly_sf <- merge(poly_sf, pts_df, by = "generator_id", all.x = TRUE)
+  }
   
   list(
     polygons = poly_sf,
@@ -883,7 +867,26 @@ weighted_voronoi_geodesic <- function(points_sf, weight_col, boundary_sf,
 #'   Controls how distances and weights combine into effective cost.
 #' @param weight_power Numeric > 0. Only used when weight_model = "power".
 #'   Controls the distance exponent.
-#' 
+#' @param anisotropy Character. Directional cost model for geodesic distance.
+#'   \describe{
+#'     \item{"none"}{Standard isotropic geodesic distance (default).}
+#'     \item{"terrain"}{Direction-dependent movement based on terrain slope (DEM required).}
+#'   }
+#'
+#' @param uphill_factor Numeric > 0. Multiplier controlling additional cost of uphill movement
+#'   when `anisotropy = "terrain"`. Values > 1 penalise uphill movement more strongly.
+#'
+#' @param downhill_factor Numeric > 0. Multiplier controlling ease of downhill movement
+#'   when `anisotropy = "terrain"`. Values > 1 make downhill travel easier.
+#'   
+#' @param geodesic_engine Character. Geodesic allocation engine to use when
+#'   `distance = "geodesic"`.
+#'   \describe{
+#'     \item{"classic"}{Per-generator accumulated-cost allocation. Supports all
+#'     current geodesic modes and weight models.}
+#'     \item{"multisource"}{Single-pass multisource allocation. Currently supported
+#'     only for `weight_model = "additive"` and `anisotropy = "none"`.}
+#'   } 
 #' @details
 #' When `distance = "geodesic"`, distances are computed as shortest paths
 #' constrained to the spatial domain. If `dem_rast` is supplied and
@@ -891,7 +894,19 @@ weighted_voronoi_geodesic <- function(points_sf, weight_col, boundary_sf,
 #' using Tobler's hiking function, such that steeper slopes increase effective
 #' distance. This allows elevation or resistance surfaces to influence spatial
 #' allocation while preserving a complete tessellation.
+#' When `distance = "geodesic"` and `anisotropy = "terrain"`, movement costs are
+#' computed using a direction-dependent extension of a Tobler-like hiking function.
 #'
+#' Movement between raster cells becomes asymmetric: uphill and downhill transitions
+#' have different costs. This results in anisotropic (direction-dependent) geodesic
+#' tessellations.
+#'
+#' Currently, anisotropic terrain mode:
+#' \itemize{
+#'   \item requires a `dem_rast` input
+#'   \item does not combine with a user-supplied `resistance_rast`
+#'   \item uses 8-directional neighbourhood transitions
+#' }
 #' @return A list with elements including:
 #' \describe{
 #'   \item{polygons}{An `sf` object with one polygon per generator.}
@@ -899,7 +914,16 @@ weighted_voronoi_geodesic <- function(points_sf, weight_col, boundary_sf,
 #'   \item{summary}{A generator-level summary table.}
 #'   \item{diagnostics}{A list of diagnostic metrics and settings.}
 #' }
+#' For geodesic allocation, `geodesic_engine = "classic"` computes one
+#' accumulated-cost surface per generator and assigns each raster cell to the
+#' minimum effective cost. This is the reference implementation and supports all
+#' current geodesic modes.
 #'
+#' `geodesic_engine = "multisource"` provides a scalable alternative for
+#' additive-weight isotropic geodesic tessellations. It uses a single multisource
+#' shortest-path propagation and is currently available only when
+#' `weight_model = "additive"` and `anisotropy = "none"`.
+#' 
 #' @examples
 #' \dontrun{
 #' library(sf)
@@ -917,6 +941,53 @@ weighted_voronoi_geodesic <- function(points_sf, weight_col, boundary_sf,
 #' )
 #' out <- weighted_voronoi_domain(points_sf, "population", boundary_sf,
 #'   res = 20, weight_transform = log10, distance = "euclidean", verbose = FALSE
+#' )
+#' }
+#' @examples
+#' \dontrun{
+#' library(sf)
+#' library(terra)
+#'
+#' crs_use <- "EPSG:3857"
+#'
+#' boundary_sf <- st_sf(
+#'   id = 1,
+#'   geometry = st_sfc(
+#'     st_polygon(list(rbind(
+#'       c(0, 0), c(1000, 0), c(1000, 1000),
+#'       c(0, 1000), c(0, 0)
+#'     ))),
+#'     crs = crs_use
+#'   )
+#' )
+#'
+#' points_sf <- st_sf(
+#'   population = c(1, 1),
+#'   geometry = st_sfc(
+#'     st_point(c(200, 500)),
+#'     st_point(c(800, 500)),
+#'     crs = crs_use
+#'   )
+#' )
+#'
+#' dem_rast <- rast(
+#'   ext = ext(0, 1000, 0, 1000),
+#'   resolution = 50,
+#'   crs = crs_use
+#' )
+#'
+#' xy <- crds(dem_rast, df = TRUE)
+#' values(dem_rast) <- xy$x * 20
+#'
+#' out <- weighted_voronoi_domain(
+#'   points_sf = points_sf,
+#'   weight_col = "population",
+#'   boundary_sf = boundary_sf,
+#'   distance = "geodesic",
+#'   dem_rast = dem_rast,
+#'   anisotropy = "terrain",
+#'   uphill_factor = 3,
+#'   downhill_factor = 1.2
 #' )
 #' }
 #' @export
@@ -944,10 +1015,45 @@ weighted_voronoi_domain <- function(points_sf,
                                     tobler_a = 3.5,
                                     tobler_b = 0.05,
                                     min_speed_kmh = 0.25,
+                                    anisotropy = c("none", "terrain"),
+                                    uphill_factor = 1,
+                                    downhill_factor = 1,
+                                    geodesic_engine = c("classic", "multisource"),
                                     # general
                                     verbose = TRUE) {
   
   distance <- match.arg(distance)
+  anisotropy <- match.arg(anisotropy)
+  geodesic_engine <- match.arg(geodesic_engine)
+  
+  if (!anisotropy %in% c("none", "terrain")) {
+    stop("anisotropy must be 'none' or 'terrain'.")
+  }
+  
+  if (anisotropy == "terrain") {
+    if (is.null(dem_rast)) {
+      stop("anisotropy = 'terrain' requires dem_rast.")
+    }
+    if (!is.null(resistance_rast)) {
+      warning("resistance_rast is currently ignored when anisotropy = 'terrain'.")
+    }
+  }
+  
+  if (!is.finite(uphill_factor) || uphill_factor <= 0) {
+    stop("uphill_factor must be finite and > 0.")
+  }
+  
+  if (!is.finite(downhill_factor) || downhill_factor <= 0) {
+    stop("downhill_factor must be finite and > 0.")
+  }
+  
+  if (geodesic_engine == "multisource" && weight_model != "additive") {
+    stop("geodesic_engine = 'multisource' currently requires weight_model = 'additive'.")
+  }
+  
+  if (geodesic_engine == "multisource" && anisotropy != "none") {
+    stop("geodesic_engine = 'multisource' currently requires anisotropy = 'none'.")
+  }
   
   weight_model <- match.arg(weight_model)
   if (!is.finite(weight_power) || weight_power <= 0) stop("weight_power must be finite and > 0.")
@@ -1064,8 +1170,12 @@ weighted_voronoi_domain <- function(points_sf,
     tobler_a = tobler_a,
     tobler_b = tobler_b,
     min_speed_kmh = min_speed_kmh,
+    anisotropy = anisotropy,
+    uphill_factor = uphill_factor,
+    downhill_factor = downhill_factor,
     island_min_cells = island_min_cells,
     island_fill_iter = island_fill_iter,
+    geodesic_engine = geodesic_engine,
     verbose = verbose
   )
   
@@ -1106,7 +1216,11 @@ weighted_voronoi_domain <- function(points_sf,
       island_min_cells = island_min_cells,
       island_fill_iter = island_fill_iter,
       resistance_rast_supplied = !is.null(resistance_rast),
-      dem_rast_supplied = !is.null(dem_rast)
+      dem_rast_supplied = !is.null(dem_rast),
+      anisotropy = anisotropy,
+      uphill_factor = uphill_factor,
+      downhill_factor = downhill_factor,
+      geodesic_engine = geodesic_engine
     )
   )
   

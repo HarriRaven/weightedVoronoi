@@ -26,6 +26,10 @@ weighted_voronoi_domain(
   tobler_a = 3.5,
   tobler_b = 0.05,
   min_speed_kmh = 0.25,
+  anisotropy = c("none", "terrain"),
+  uphill_factor = 1,
+  downhill_factor = 1,
+  geodesic_engine = c("classic", "multisource"),
   verbose = TRUE
 )
 }
@@ -79,6 +83,27 @@ slope into isotropic movement cost.}
 
 \item{min_speed_kmh}{Minimum allowed speed to avoid infinite costs.}
 
+\item{anisotropy}{Character. Directional cost model for geodesic distance.
+\describe{
+\item{"none"}{Standard isotropic geodesic distance (default).}
+\item{"terrain"}{Direction-dependent movement based on terrain slope (DEM required).}
+}}
+
+\item{uphill_factor}{Numeric > 0. Multiplier controlling additional cost of uphill movement
+when \code{anisotropy = "terrain"}. Values > 1 penalise uphill movement more strongly.}
+
+\item{downhill_factor}{Numeric > 0. Multiplier controlling ease of downhill movement
+when \code{anisotropy = "terrain"}. Values > 1 make downhill travel easier.}
+
+\item{geodesic_engine}{Character. Geodesic allocation engine to use when
+\code{distance = "geodesic"}.
+\describe{
+\item{"classic"}{Per-generator accumulated-cost allocation. Supports all
+current geodesic modes and weight models.}
+\item{"multisource"}{Single-pass multisource allocation. Currently supported
+only for \code{weight_model = "additive"} and \code{anisotropy = "none"}.}
+}}
+
 \item{verbose}{Logical. If \code{TRUE}, prints progress.}
 }
 \value{
@@ -89,6 +114,15 @@ A list with elements including:
 \item{summary}{A generator-level summary table.}
 \item{diagnostics}{A list of diagnostic metrics and settings.}
 }
+For geodesic allocation, \code{geodesic_engine = "classic"} computes one
+accumulated-cost surface per generator and assigns each raster cell to the
+minimum effective cost. This is the reference implementation and supports all
+current geodesic modes.
+
+\code{geodesic_engine = "multisource"} provides a scalable alternative for
+additive-weight isotropic geodesic tessellations. It uses a single multisource
+shortest-path propagation and is currently available only when
+\code{weight_model = "additive"} and \code{anisotropy = "none"}.
 }
 \description{
 Creates a complete, connected tessellation of a polygonal domain using either
@@ -103,6 +137,19 @@ constrained to the spatial domain. If \code{dem_rast} is supplied and
 using Tobler's hiking function, such that steeper slopes increase effective
 distance. This allows elevation or resistance surfaces to influence spatial
 allocation while preserving a complete tessellation.
+When \code{distance = "geodesic"} and \code{anisotropy = "terrain"}, movement costs are
+computed using a direction-dependent extension of a Tobler-like hiking function.
+
+Movement between raster cells becomes asymmetric: uphill and downhill transitions
+have different costs. This results in anisotropic (direction-dependent) geodesic
+tessellations.
+
+Currently, anisotropic terrain mode:
+\itemize{
+\item requires a \code{dem_rast} input
+\item does not combine with a user-supplied \code{resistance_rast}
+\item uses 8-directional neighbourhood transitions
+}
 }
 \examples{
 \dontrun{
@@ -121,6 +168,52 @@ points_sf <- st_sf(
 )
 out <- weighted_voronoi_domain(points_sf, "population", boundary_sf,
   res = 20, weight_transform = log10, distance = "euclidean", verbose = FALSE
+)
+}
+\dontrun{
+library(sf)
+library(terra)
+
+crs_use <- "EPSG:3857"
+
+boundary_sf <- st_sf(
+  id = 1,
+  geometry = st_sfc(
+    st_polygon(list(rbind(
+      c(0, 0), c(1000, 0), c(1000, 1000),
+      c(0, 1000), c(0, 0)
+    ))),
+    crs = crs_use
+  )
+)
+
+points_sf <- st_sf(
+  population = c(1, 1),
+  geometry = st_sfc(
+    st_point(c(200, 500)),
+    st_point(c(800, 500)),
+    crs = crs_use
+  )
+)
+
+dem_rast <- rast(
+  ext = ext(0, 1000, 0, 1000),
+  resolution = 50,
+  crs = crs_use
+)
+
+xy <- crds(dem_rast, df = TRUE)
+values(dem_rast) <- xy$x * 20
+
+out <- weighted_voronoi_domain(
+  points_sf = points_sf,
+  weight_col = "population",
+  boundary_sf = boundary_sf,
+  distance = "geodesic",
+  dem_rast = dem_rast,
+  anisotropy = "terrain",
+  uphill_factor = 3,
+  downhill_factor = 1.2
 )
 }
 }

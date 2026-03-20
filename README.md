@@ -5,10 +5,10 @@
 
 # weightedVoronoi
 
-Tools for weighted spatial tessellation using Euclidean and geodesic
-distances within constrained polygons. Produces complete, connected
-partitions that respect complex boundaries and heterogeneous point
-weights.
+Tools for weighted spatial tessellation in constrained domains using
+Euclidean and geodesic distances. Produces complete, connected
+partitions that respect complex boundaries, heterogeneous point weights,
+resistance surfaces, and temporal or uncertainty-aware workflows.
 
 🌐 Website: <https://HarriRaven.github.io/weightedVoronoi/>
 
@@ -19,22 +19,27 @@ weights.
 1)  Weighted Euclidean and geodesic tessellations inside arbitrary
     polygon domains
 
-2)  Flexible weight models via weight_model and (optionally)
-    weight_power
+2)  Flexible weight semantics via weight_model and weight_power
 
-3)  Custom resistance surfaces via resistance_rast
-
-4)  User-side barriers (raster or vector lines/polygons) via
+3)  Custom resistance surfaces and barriers via compose_resistance() and
     add_barriers()
 
-5)  Resistance composition from multiple rasters via
-    compose_resistance()
+4)  Terrain-informed geodesic allocation via DEM/Tobler resistance
+
+5)  Terrain-anisotropic geodesic tessellations
+
+6)  Scalable multisource geodesic allocation for additive isotropic
+    geodesics
+
+7)  Uncertainty-aware tessellations with probability and entropy outputs
+
+8)  Temporal tessellation stacks with change and persistence maps
 
 ## Installation
 
 ``` r
-install.packages(“remotes”)
-remotes::install_github(“HarriRaven/weightedVoronoi”)
+install.packages("remotes")
+remotes::install_github("HarriRaven/weightedVoronoi")
 
 library(sf)
 library(terra)
@@ -113,6 +118,9 @@ out_geo <- weighted_voronoi_domain(
 )
 ```
 
+The package also supports uncertainty-aware and temporal workflows; see
+the vignette for worked examples.
+
 ### Custom Resistance and Barriers
 
 Build a resistance surface on the same grid, optionally combine layers,
@@ -156,10 +164,18 @@ out_geo_res <- weighted_voronoi_domain(
 
 #### Terrain-aware tessellations
 
-`weightedVoronoi` supports geodesic tessellations that incorporate
-environmental resistance. When supplied with an elevation raster,
-distances are modified using Tobler’s hiking function, allowing
-topography to influence spatial allocation.
+Environmental resistance and terrain can strongly influence spatial
+allocation.
+
+The example below shows how terrain anisotropy (direction-dependent
+movement cost) can substantially alter geodesic tessellations compared
+to isotropic resistance.
+
+Unlike isotropic resistance, terrain-anisotropic geodesic tessellations
+allow uphill and downhill movement to differ, producing
+direction-dependent allocation patterns.
+
+<img src="man/figures/fig-anisotropy.png" alt="" width="100%" />
 
 ##### Flat domain (no resistance)
 

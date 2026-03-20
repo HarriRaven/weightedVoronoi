@@ -26,5 +26,6 @@ Imports:
     terra,
     dplyr,
     gdistance,
-    raster
+    raster,
+    Matrix
 

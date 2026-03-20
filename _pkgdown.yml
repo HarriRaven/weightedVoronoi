@@ -18,7 +18,11 @@ navbar:
 
 home:
   title: weightedVoronoi
-  description: Tools for weighted spatial tessellation using Euclidean and geodesic distances within constrained polygons, with optional elevation-dependent resistance (Tobler hiking function) for terrain-aware allocation.
+  description: >
+    Tools for weighted spatial tessellation in constrained domains, including
+    Euclidean and geodesic allocation, resistance surfaces, terrain anisotropy,
+    scalable multisource geodesics, uncertainty-aware tessellations, and temporal
+    tessellation workflows.
   links:
   - text: Get started (vignette)
     href: articles/weighted-voronoi.html
@@ -31,6 +35,11 @@ reference:
       - weighted_voronoi_domain
       - weighted_voronoi
       - weighted_voronoi_geodesic
+
+  - title: "Advanced workflows"
+    contents:
+      - weighted_voronoi_uncertainty
+      - weighted_voronoi_time
 
   - title: "Resistance and barriers"
     contents:

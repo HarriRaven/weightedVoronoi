@@ -21,8 +21,13 @@ weighted_voronoi_geodesic(
   tobler_a = 3.5,
   tobler_b = 0.05,
   min_speed_kmh = 0.25,
+  anisotropy = c("none", "terrain"),
+  uphill_factor = 1,
+  downhill_factor = 1,
   island_min_cells = 5,
   island_fill_iter = 50,
+  geodesic_engine = c("classic", "multisource"),
+  return_polygons = TRUE,
   verbose = TRUE
 )
 }
@@ -65,9 +70,27 @@ slope into isotropic movement cost.}
 
 \item{min_speed_kmh}{Minimum allowed speed to avoid infinite costs.}
 
+\item{anisotropy}{Character. Directional cost model for geodesic distance.
+\describe{
+\item{"none"}{Standard isotropic geodesic distance (default).}
+\item{"terrain"}{Direction-dependent movement based on terrain slope (DEM required).}
+}}
+
+\item{uphill_factor}{Numeric > 0. Multiplier controlling additional cost of uphill movement
+when \code{anisotropy = "terrain"}. Values > 1 penalise uphill movement more strongly.}
+
+\item{downhill_factor}{Numeric > 0. Multiplier controlling ease of downhill movement
+when \code{anisotropy = "terrain"}. Values > 1 make downhill travel easier.}
+
 \item{island_min_cells}{Integer. Minimum patch size used in island removal.}
 
 \item{island_fill_iter}{Integer. Maximum iterations for filling reassigned cells.}
+
+\item{geodesic_engine}{Character. Geodesic allocation engine; one of
+\code{"classic"} or \code{"multisource"}.}
+
+\item{return_polygons}{Logical. If \code{TRUE}, polygonise the cleaned allocation
+raster and attach point attributes. If \code{FALSE}, return allocation outputs only.}
 
 \item{verbose}{Logical. If \code{TRUE}, prints progress.}
 }
