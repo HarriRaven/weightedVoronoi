@@ -12,9 +12,11 @@ weighted_voronoi_uncertainty(
   weight_sd = NULL,
   distance = c("euclidean", "geodesic"),
   geodesic_engine = c("multisource", "classic"),
+  res = 20,
   keep_simulations = FALSE,
   seed = NULL,
   warn_zero_entropy = TRUE,
+  prepared = NULL,
   verbose = TRUE,
   ...
 )
@@ -37,6 +39,8 @@ same tessellation is repeated.}
 \item{geodesic_engine}{Character. Geodesic engine to use when
 \code{distance = "geodesic"}. Defaults to \code{"multisource"}.}
 
+\item{res}{Numeric. Raster resolution in CRS units (e.g. metres).}
+
 \item{keep_simulations}{Logical. If \code{TRUE}, return the simulated allocation
 rasters as a stack.}
 
@@ -44,6 +48,9 @@ rasters as a stack.}
 
 \item{warn_zero_entropy}{Logical. If \code{TRUE}, warn when all entropy values are
 zero across the domain.}
+
+\item{prepared}{Optional prepared geodesic context created by
+\code{\link[=prepare_geodesic_context]{prepare_geodesic_context()}} for repeated compatible geodesic runs.}
 
 \item{verbose}{Logical. If \code{TRUE}, prints progress.}
 

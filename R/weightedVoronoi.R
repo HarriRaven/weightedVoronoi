@@ -668,6 +668,8 @@ weighted_voronoi <- function(points_sf,
 #'   `"classic"` or `"multisource"`.
 #' @param return_polygons Logical. If `TRUE`, polygonise the cleaned allocation
 #'   raster and attach point attributes. If `FALSE`, return allocation outputs only.
+#' @param prepared Optional prepared geodesic context created by
+#'   [prepare_geodesic_context()] for repeated compatible geodesic runs.
 #' @return A list containing polygon output, allocation raster, and weights.
 #' @export
 
@@ -692,6 +694,7 @@ weighted_voronoi_geodesic <- function(points_sf, weight_col, boundary_sf,
                                       island_fill_iter = 50,
                                       geodesic_engine = c("classic", "multisource"),
                                       return_polygons = TRUE,
+                                      prepared = NULL,
                                       verbose = TRUE) {
   
   if (!requireNamespace("gdistance", quietly = TRUE)) stop("Install gdistance.")
@@ -717,13 +720,68 @@ weighted_voronoi_geodesic <- function(points_sf, weight_col, boundary_sf,
   }
   if (nrow(points_sf) == 0) stop("No points remain inside the boundary.")
   
-  # --- raster template + mask ---
-  r <- .build_domain_mask(
-    boundary_sf = boundary_sf,
-    res = res,
-    close_mask = close_mask,
-    close_iters = close_iters
-  )
+  # --- raster template + mask / prepared context ---
+  if (!is.null(prepared)) {
+    if (!is.list(prepared)) stop("prepared must be a prepared geodesic context object.")
+    if (is.null(prepared$mask_r) || !inherits(prepared$mask_r, "SpatRaster")) {
+      stop("prepared$mask_r must be a terra SpatRaster.")
+    }
+    if (is.null(prepared$transition)) {
+      stop("prepared context does not contain a transition object.")
+    }
+    
+    r <- prepared$mask_r
+    tr <- prepared$transition
+    
+    prep_aniso <- prepared$settings$anisotropy
+    prep_engine <- prepared$settings$geodesic_engine
+    
+    if (!identical(prep_aniso, anisotropy)) {
+      stop("prepared context anisotropy does not match requested anisotropy.")
+    }
+    if (!identical(prep_engine, geodesic_engine)) {
+      stop("prepared context geodesic_engine does not match requested geodesic_engine.")
+    }
+    
+  } else {
+    r <- .build_domain_mask(
+      boundary_sf = boundary_sf,
+      res = res,
+      close_mask = close_mask,
+      close_iters = close_iters
+    )
+    
+    if (anisotropy == "none") {
+      resistance <- .prep_resistance(
+        mask_r = r,
+        resistance_rast = resistance_rast,
+        dem_rast = dem_rast,
+        use_tobler = use_tobler,
+        tobler_v0_kmh = tobler_v0_kmh,
+        tobler_a = tobler_a,
+        tobler_b = tobler_b,
+        min_speed_kmh = min_speed_kmh
+      )
+      
+      tr <- .build_isotropic_transition(resistance)
+      
+    } else if (anisotropy == "terrain") {
+      if (is.null(dem_rast)) {
+        stop("anisotropy = 'terrain' requires dem_rast.")
+      }
+      
+      tr <- .build_terrain_anisotropic_transition(
+        dem_rast = dem_rast,
+        mask_r = r,
+        uphill_factor = uphill_factor,
+        downhill_factor = downhill_factor,
+        v0_kmh = tobler_v0_kmh,
+        a = tobler_a,
+        b = tobler_b,
+        min_speed_kmh = min_speed_kmh
+      )
+    }
+  }
   
   # --- weights ---
   w_raw <- as.numeric(points_sf[[weight_col]])
@@ -784,6 +842,7 @@ weighted_voronoi_geodesic <- function(points_sf, weight_col, boundary_sf,
       weight_model = weight_model,
       weight_power = weight_power,
       template_rast = r,
+      graph = if (!is.null(prepared)) prepared$graph else NULL,
       anisotropy = anisotropy,
       verbose = verbose
     )
@@ -887,6 +946,9 @@ weighted_voronoi_geodesic <- function(points_sf, weight_col, boundary_sf,
 #'     \item{"multisource"}{Single-pass multisource allocation. Currently supported
 #'     only for `weight_model = "additive"` and `anisotropy = "none"`.}
 #'   } 
+#' @param prepared Optional prepared geodesic context created by
+#'   [prepare_geodesic_context()] for repeated compatible geodesic runs.
+#'   
 #' @details
 #' When `distance = "geodesic"`, distances are computed as shortest paths
 #' constrained to the spatial domain. If `dem_rast` is supplied and
@@ -1019,12 +1081,17 @@ weighted_voronoi_domain <- function(points_sf,
                                     uphill_factor = 1,
                                     downhill_factor = 1,
                                     geodesic_engine = c("classic", "multisource"),
+                                    prepared = NULL,
                                     # general
                                     verbose = TRUE) {
   
   distance <- match.arg(distance)
   anisotropy <- match.arg(anisotropy)
   geodesic_engine <- match.arg(geodesic_engine)
+  
+  if (!is.null(prepared) && distance != "geodesic") {
+    stop("prepared can only be used when distance = 'geodesic'.")
+  }
   
   if (!anisotropy %in% c("none", "terrain")) {
     stop("anisotropy must be 'none' or 'terrain'.")
@@ -1176,6 +1243,7 @@ weighted_voronoi_domain <- function(points_sf,
     island_min_cells = island_min_cells,
     island_fill_iter = island_fill_iter,
     geodesic_engine = geodesic_engine,
+    prepared = prepared,
     verbose = verbose
   )
   
@@ -1220,7 +1288,8 @@ weighted_voronoi_domain <- function(points_sf,
       anisotropy = anisotropy,
       uphill_factor = uphill_factor,
       downhill_factor = downhill_factor,
-      geodesic_engine = geodesic_engine
+      geodesic_engine = geodesic_engine,
+      prepared_supplied = !is.null(prepared)
     )
   )
   

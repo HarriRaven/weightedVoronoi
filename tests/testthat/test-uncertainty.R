@@ -167,3 +167,40 @@ test_that("weight uncertainty can generate non-zero entropy in a sensitive setup
   
   expect_true(any(ent_vals > 0))
 })
+
+test_that("uncertainty geodesic workflow still runs with prepared context", {
+  library(sf)
+  
+  crs_use <- "EPSG:32636"
+  
+  boundary_sf <- st_sf(
+    geometry = st_sfc(st_polygon(list(rbind(
+      c(0,0), c(200,0), c(200,200), c(0,200), c(0,0)
+    )))),
+    crs = crs_use
+  )
+  
+  points_sf <- st_sf(
+    population = c(0.01, 0.02),
+    geometry = st_sfc(
+      st_point(c(60, 100)),
+      st_point(c(140, 100))
+    ),
+    crs = crs_use
+  )
+  
+  out <- weighted_voronoi_uncertainty(
+    points_sf = points_sf,
+    weight_col = "population",
+    boundary_sf = boundary_sf,
+    n_sim = 10,
+    weight_sd = 0.5,
+    distance = "geodesic",
+    geodesic_engine = "multisource",
+    weight_model = "additive",
+    verbose = FALSE,
+    seed = 1
+  )
+  
+  expect_true(inherits(out$entropy, "SpatRaster"))
+})

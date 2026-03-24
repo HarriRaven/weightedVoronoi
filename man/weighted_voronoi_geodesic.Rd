@@ -28,6 +28,7 @@ weighted_voronoi_geodesic(
   island_fill_iter = 50,
   geodesic_engine = c("classic", "multisource"),
   return_polygons = TRUE,
+  prepared = NULL,
   verbose = TRUE
 )
 }
@@ -91,6 +92,9 @@ when \code{anisotropy = "terrain"}. Values > 1 make downhill travel easier.}
 
 \item{return_polygons}{Logical. If \code{TRUE}, polygonise the cleaned allocation
 raster and attach point attributes. If \code{FALSE}, return allocation outputs only.}
+
+\item{prepared}{Optional prepared geodesic context created by
+\code{\link[=prepare_geodesic_context]{prepare_geodesic_context()}} for repeated compatible geodesic runs.}
 
 \item{verbose}{Logical. If \code{TRUE}, prints progress.}
 }

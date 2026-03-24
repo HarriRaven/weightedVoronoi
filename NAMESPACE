@@ -2,6 +2,7 @@
 
 export(add_barriers)
 export(compose_resistance)
+export(prepare_geodesic_context)
 export(weighted_voronoi)
 export(weighted_voronoi_domain)
 export(weighted_voronoi_geodesic)

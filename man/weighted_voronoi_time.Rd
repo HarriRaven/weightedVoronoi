@@ -11,10 +11,12 @@ weighted_voronoi_time(
   time_index = NULL,
   distance = c("euclidean", "geodesic"),
   geodesic_engine = c("multisource", "classic"),
+  res = 20,
   resistance_list = NULL,
   dem_list = NULL,
   keep_polygons = FALSE,
   keep_summaries = TRUE,
+  prepared = NULL,
   verbose = TRUE,
   ...
 )
@@ -34,6 +36,8 @@ of \code{points_list}.}
 
 \item{geodesic_engine}{Character. Geodesic engine to use when
 \code{distance = "geodesic"}.}
+
+\item{res}{Numeric. Raster resolution in CRS units (e.g. metres).}
 
 \item{resistance_list}{Optional list of resistance rasters, either length 1
 (reused for all times) or the same length as \code{points_list}.}

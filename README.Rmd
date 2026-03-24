@@ -112,6 +112,40 @@ out_geo <- weighted_voronoi_domain(
 
 The package also supports uncertainty-aware and temporal workflows; see the vignette for worked examples.
 
+#### Fast workflows with prepared context
+
+ctx <- prepare_geodesic_context(...)
+
+weighted_voronoi_domain(..., prepared = ctx)
+weighted_voronoi_time(..., prepared = ctx)
+weighted_voronoi_uncertainty(..., prepared = ctx)
+
+#####Reusing Geodetic Contexts
+
+```r
+ctx <- prepare_geodesic_context(
+  boundary_sf = boundary_sf,
+  res = 20,
+  distance = "geodesic",
+  geodesic_engine = "multisource"
+)
+
+# Now reuse for many runs (fast)
+out1 <- weighted_voronoi_geodesic(
+  points_sf = points_t1,
+  weight_col = "population",
+  prepared = ctx
+)
+
+out2 <- weighted_voronoi_geodesic(
+  points_sf = points_t2,
+  weight_col = "population",
+  prepared = ctx
+)
+```
+
+This avoids rebuilding the geodesic graph and can substantially speed up repeated runs (e.g. temporal or uncertainty workflows).
+
 ### Custom Resistance and Barriers
 
 Build a resistance surface on the same grid, optionally combine layers, then apply barriers before running a geodesic tessellation.

@@ -21,6 +21,9 @@
 #' @param ... Additional arguments passed to [weighted_voronoi_domain()].
 #' @param warn_zero_entropy Logical. If `TRUE`, warn when all entropy values are
 #'   zero across the domain.
+#' @param res Numeric. Raster resolution in CRS units (e.g. metres).
+#' @param prepared Optional prepared geodesic context created by
+#'   [prepare_geodesic_context()] for repeated compatible geodesic runs.
 #'
 #' @details
 #' This first implementation supports uncertainty in generator weights only.
@@ -51,9 +54,11 @@ weighted_voronoi_uncertainty <- function(
     weight_sd = NULL,
     distance = c("euclidean", "geodesic"),
     geodesic_engine = c("multisource", "classic"),
+    res = 20,
     keep_simulations = FALSE,
     seed = NULL,
     warn_zero_entropy = TRUE,
+    prepared = NULL,
     verbose = TRUE,
     ...
 ) {
@@ -62,6 +67,7 @@ weighted_voronoi_uncertainty <- function(
   
   distance <- match.arg(distance)
   geodesic_engine <- match.arg(geodesic_engine)
+  
   
   if (!inherits(points_sf, "sf")) stop("points_sf must be an sf object.")
   if (!inherits(boundary_sf, "sf")) stop("boundary_sf must be an sf object.")
@@ -80,12 +86,49 @@ weighted_voronoi_uncertainty <- function(
     set.seed(seed)
   }
   
-  allocation_list <- vector("list", n_sim)
+  dots <- list(...)
+  dot1 <- function(name, default) {
+    if (name %in% names(dots)) dots[[name]] else default
+  }
   
   base_weights <- as.numeric(points_sf[[weight_col]])
   if (any(!is.finite(base_weights)) || any(base_weights <= 0)) {
     stop("Input weights must be finite and > 0 before uncertainty perturbation.")
   }
+  
+  gen_ids <- seq_len(nrow(points_sf))
+  n_gen <- length(gen_ids)
+  
+  prepared_ctx <- NULL
+  if (distance == "geodesic") {
+    if (!is.null(prepared)) {
+      prepared_ctx <- prepared
+    } else {
+      prepared_ctx <- prepare_geodesic_context(
+        boundary_sf = boundary_sf,
+        res = res,
+        close_mask = dot1("close_mask", TRUE),
+        close_iters = dot1("close_iters", 1),
+        resistance_rast = dot1("resistance_rast", NULL),
+        dem_rast = dot1("dem_rast", NULL),
+        use_tobler = dot1("use_tobler", TRUE),
+        tobler_v0_kmh = dot1("tobler_v0_kmh", 6),
+        tobler_a = dot1("tobler_a", 3.5),
+        tobler_b = dot1("tobler_b", 0.05),
+        min_speed_kmh = dot1("min_speed_kmh", 0.25),
+        anisotropy = dot1("anisotropy", "none"),
+        uphill_factor = dot1("uphill_factor", 1),
+        downhill_factor = dot1("downhill_factor", 1),
+        geodesic_engine = geodesic_engine
+      )
+    }
+  }
+  
+  allocation_list <- if (keep_simulations) vector("list", n_sim) else NULL
+  
+  template_rast <- NULL
+  inside_domain <- NULL
+  count_mat <- NULL  # ncell x n_gen integer matrix
   
   for (i in seq_len(n_sim)) {
     if (verbose && (i == 1 || i == n_sim || i %% 10 == 0)) {
@@ -105,6 +148,8 @@ weighted_voronoi_uncertainty <- function(
         weight_col = weight_col,
         boundary_sf = boundary_sf,
         geodesic_engine = geodesic_engine,
+        res = res,
+        prepared = prepared_ctx,
         return_polygons = FALSE,
         verbose = FALSE,
         ...
@@ -118,27 +163,43 @@ weighted_voronoi_uncertainty <- function(
         boundary_sf = boundary_sf,
         distance = distance,
         geodesic_engine = geodesic_engine,
+        res = res,
         verbose = FALSE,
         ...
       )
       allocation_i <- out_i$allocation
     }
-    names(allocation_i) <- paste0("sim_", i)
-    allocation_list[[i]] <- allocation_i
+    
+    alloc_vals <- terra::values(allocation_i, mat = FALSE)
+    
+    if (is.null(template_rast)) {
+      template_rast <- allocation_i
+      inside_domain <- !is.na(alloc_vals)
+      n_cells <- length(alloc_vals)
+      count_mat <- matrix(0L, nrow = n_cells, ncol = n_gen)
+    }
+    
+    for (j in seq_len(n_gen)) {
+      count_mat[, j] <- count_mat[, j] + as.integer(!is.na(alloc_vals) & alloc_vals == gen_ids[j])
+    }
+    
+    if (keep_simulations) {
+      names(allocation_i) <- paste0("sim_", i)
+      allocation_list[[i]] <- allocation_i
+    }
   }
   
-  alloc_stack <- terra::rast(allocation_list)
-  
-  # Assumes generator ids are 1..nrow(points_sf)
-  gen_ids <- seq_len(nrow(points_sf))
-  
-  prob_list <- lapply(gen_ids, function(id) {
-    p <- terra::app(alloc_stack, fun = function(x) {
-      mean(x == id, na.rm = TRUE)
-    })
-    names(p) <- paste0("gen_", id)
-    p
-  })
+  # Build probability rasters from count matrix
+  prob_list <- vector("list", n_gen)
+  for (j in seq_len(n_gen)) {
+    vals <- rep(NA_real_, nrow(count_mat))
+    vals[inside_domain] <- count_mat[inside_domain, j] / n_sim
+    
+    r <- template_rast
+    r <- terra::setValues(r, vals)
+    names(r) <- paste0("gen_", gen_ids[j])
+    prob_list[[j]] <- r
+  }
   
   prob_stack <- terra::rast(prob_list)
   
@@ -155,7 +216,7 @@ weighted_voronoi_uncertainty <- function(
   })
   names(entropy) <- "entropy"
   
-  ent_vals <- terra::values(entropy)
+  ent_vals <- terra::values(entropy, mat = FALSE)
   ent_vals <- ent_vals[is.finite(ent_vals)]
   
   if (warn_zero_entropy && length(ent_vals) && all(ent_vals == 0)) {
@@ -164,10 +225,6 @@ weighted_voronoi_uncertainty <- function(
       "Consider increasing weight_sd or using a setup where weight effects are larger relative to spatial distances."
     )
   }
-  
-  names(prob_stack) <- paste0("gen_", gen_ids)
-  names(modal_allocation) <- "modal_allocation"
-  names(entropy) <- "entropy"
   
   out <- list(
     probabilities = prob_stack,
@@ -180,6 +237,7 @@ weighted_voronoi_uncertainty <- function(
   )
   
   if (keep_simulations) {
+    alloc_stack <- terra::rast(allocation_list)
     out$simulations <- alloc_stack
   }
   

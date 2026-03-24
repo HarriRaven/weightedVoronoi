@@ -30,6 +30,7 @@ weighted_voronoi_domain(
   uphill_factor = 1,
   downhill_factor = 1,
   geodesic_engine = c("classic", "multisource"),
+  prepared = NULL,
   verbose = TRUE
 )
 }
@@ -103,6 +104,9 @@ current geodesic modes and weight models.}
 \item{"multisource"}{Single-pass multisource allocation. Currently supported
 only for \code{weight_model = "additive"} and \code{anisotropy = "none"}.}
 }}
+
+\item{prepared}{Optional prepared geodesic context created by
+\code{\link[=prepare_geodesic_context]{prepare_geodesic_context()}} for repeated compatible geodesic runs.}
 
 \item{verbose}{Logical. If \code{TRUE}, prints progress.}
 }

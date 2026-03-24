@@ -31,12 +31,13 @@
 }
 
 .compute_geodesic_allocation_multisource <- function(
-    tr,
+    tr = NULL,
     points_sf,
     weight_vec,
     weight_model,
     weight_power,
-    template_rast,
+    template_rast = NULL,
+    graph = NULL,
     anisotropy = "none",
     verbose = TRUE
 ) {
@@ -50,42 +51,31 @@
   if (!identical(anisotropy, "none")) {
     stop("geodesic_engine = 'multisource' currently requires anisotropy = 'none'.")
   }
-  if (is.null(template_rast) || !inherits(template_rast, "SpatRaster")) {
-    stop("template_rast must be supplied as a terra SpatRaster.")
+  if (is.null(graph)) {
+    if (is.null(template_rast) || !inherits(template_rast, "SpatRaster")) {
+      stop("template_rast must be supplied as a terra SpatRaster when graph is NULL.")
+    }
+    if (is.null(tr)) {
+      stop("tr must be supplied when graph is NULL.")
+    }
   }
   
-  # Transition matrix stores conductance; convert to edge cost
-  TM <- gdistance::transitionMatrix(tr)
-  sm <- Matrix::summary(TM)
-  
-  # Keep only finite positive conductance edges
-  ok <- is.finite(sm$x) & sm$x > 0
-  if (!any(ok)) stop("Transition matrix has no finite positive edges.")
-  
-  from0 <- sm$i[ok]
-  to0   <- sm$j[ok]
-  cond0 <- sm$x[ok]
-  
-  # For isotropic multisource mode, always make the graph explicitly bidirectional.
-  # This avoids any ambiguity about how the sparse matrix stores symmetric entries.
-  offdiag <- from0 != to0
-  
-  from <- c(from0, to0[offdiag])
-  to   <- c(to0,   from0[offdiag])
-  conductance <- c(cond0, cond0[offdiag])
-  
-  edge_cost <- 1 / conductance
-  
-  # Sort by source node to allow fast outgoing-edge lookup
-  ord <- order(from, to)
-  from <- from[ord]
-  to <- to[ord]
-  edge_cost <- edge_cost[ord]
+  if (!is.null(graph)) {
+    from <- graph$from
+    to <- graph$to
+    edge_cost <- graph$edge_cost
+    start_idx <- graph$start_idx
+    template_rast <- graph$template_rast
+  } else {
+    graph <- .prepare_multisource_graph(tr = tr, template_rast = template_rast)
+    from <- graph$from
+    to <- graph$to
+    edge_cost <- graph$edge_cost
+    start_idx <- graph$start_idx
+    template_rast <- graph$template_rast
+  }
   
   n <- terra::ncell(template_rast)
-  
-  counts <- tabulate(from, nbins = n)
-  start_idx <- cumsum(c(1L, counts))  # outgoing edges for u are start_idx[u]:(start_idx[u+1]-1)
   
   # Source cells from point locations
   pts_v <- terra::vect(points_sf)

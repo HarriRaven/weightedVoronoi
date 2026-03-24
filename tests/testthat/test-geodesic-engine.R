@@ -169,3 +169,60 @@ test_that("multisource matches classic for additive isotropic geodesics", {
   expect_equal(out_classic$summary$n_cells, out_multi$summary$n_cells)
   expect_equal(out_classic$summary$area_m2, out_multi$summary$area_m2)
 })
+
+
+test_that("prepared geodesic context matches unprepared multisource allocation", {
+  library(sf)
+  library(terra)
+  
+  crs_use <- "EPSG:32636"
+  
+  boundary_sf <- st_sf(
+    geometry = st_sfc(st_polygon(list(rbind(
+      c(0,0), c(1000,0), c(1000,1000), c(0,1000), c(0,0)
+    )))),
+    crs = crs_use
+  )
+  
+  points_sf <- st_sf(
+    population = c(1, 2),
+    geometry = st_sfc(
+      st_point(c(200, 500)),
+      st_point(c(800, 500))
+    ),
+    crs = crs_use
+  )
+  
+  ctx <- prepare_geodesic_context(
+    boundary_sf = boundary_sf,
+    res = 20,
+    anisotropy = "none",
+    geodesic_engine = "multisource"
+  )
+  
+  out_prepared <- weighted_voronoi_geodesic(
+    points_sf = points_sf,
+    weight_col = "population",
+    boundary_sf = boundary_sf,
+    weight_model = "additive",
+    geodesic_engine = "multisource",
+    prepared = ctx,
+    return_polygons = FALSE,
+    verbose = FALSE
+  )
+  
+  out_plain <- weighted_voronoi_geodesic(
+    points_sf = points_sf,
+    weight_col = "population",
+    boundary_sf = boundary_sf,
+    weight_model = "additive",
+    geodesic_engine = "multisource",
+    return_polygons = FALSE,
+    verbose = FALSE
+  )
+  
+  expect_equal(
+    unname(as.vector(terra::values(out_prepared$allocation))),
+    unname(as.vector(terra::values(out_plain$allocation)))
+  )
+})

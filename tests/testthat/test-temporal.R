@@ -238,3 +238,48 @@ test_that("temporal tessellation returns change map and persistence", {
   expect_true(all(change_vals %in% c(0, 1)))
   expect_true(all(persist_vals %in% c(0, 1)))
 })
+
+test_that("temporal geodesic workflow still runs with prepared contexts", {
+  library(sf)
+  library(terra)
+  
+  crs_use <- "EPSG:32636"
+  
+  boundary_sf <- st_sf(
+    geometry = st_sfc(st_polygon(list(rbind(
+      c(0,0), c(1000,0), c(1000,1000), c(0,1000), c(0,0)
+    )))),
+    crs = crs_use
+  )
+  
+  pts_t1 <- st_sf(
+    population = c(1, 2),
+    geometry = st_sfc(
+      st_point(c(200, 500)),
+      st_point(c(800, 500))
+    ),
+    crs = crs_use
+  )
+  
+  pts_t2 <- st_sf(
+    population = c(2, 1),
+    geometry = st_sfc(
+      st_point(c(250, 500)),
+      st_point(c(750, 500))
+    ),
+    crs = crs_use
+  )
+  
+  out <- weighted_voronoi_time(
+    points_list = list(time1 = pts_t1, time2 = pts_t2),
+    weight_col = "population",
+    boundary_sf = boundary_sf,
+    distance = "geodesic",
+    geodesic_engine = "multisource",
+    weight_model = "additive",
+    verbose = FALSE
+  )
+  
+  expect_true(inherits(out$allocations, "SpatRaster"))
+  expect_equal(terra::nlyr(out$allocations), 2)
+})

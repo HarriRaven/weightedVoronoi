@@ -21,6 +21,7 @@
 #' @param keep_summaries Logical. If `TRUE`, return summaries for each time step.
 #' @param verbose Logical. If `TRUE`, prints progress.
 #' @param ... Additional arguments passed to [weighted_voronoi_domain()].
+#' @param res Numeric. Raster resolution in CRS units (e.g. metres).
 #'
 #' @details
 #' This first implementation assumes a static boundary and runs each time step
@@ -46,10 +47,12 @@ weighted_voronoi_time <- function(
     time_index = NULL,
     distance = c("euclidean", "geodesic"),
     geodesic_engine = c("multisource", "classic"),
+    res = 20,
     resistance_list = NULL,
     dem_list = NULL,
     keep_polygons = FALSE,
     keep_summaries = TRUE,
+    prepared = NULL,
     verbose = TRUE,
     ...
 ) {
@@ -93,9 +96,77 @@ weighted_voronoi_time <- function(
     }
   }
   
+  dots <- list(...)
+  dot1 <- function(name, default) {
+    if (name %in% names(dots)) dots[[name]] else default
+  }
+  
+  get_resistance_i <- function(i) {
+    if (is.null(resistance_list)) return(NULL)
+    if (length(resistance_list) == 1) resistance_list[[1]] else resistance_list[[i]]
+  }
+  
+  get_dem_i <- function(i) {
+    if (is.null(dem_list)) return(NULL)
+    if (length(dem_list) == 1) dem_list[[1]] else dem_list[[i]]
+  }
+  
   allocation_list <- vector("list", n_t)
   polygon_list <- if (keep_polygons) vector("list", n_t) else NULL
   summary_list <- if (keep_summaries) vector("list", n_t) else NULL
+  
+  prepared_list <- NULL
+  prepared_shared <- NULL
+  
+  if (distance == "geodesic") {
+    static_surface <- (is.null(resistance_list) || length(resistance_list) == 1) &&
+      (is.null(dem_list) || length(dem_list) == 1)
+    
+    if (static_surface) {
+      prepared_shared <- prepare_geodesic_context(
+        boundary_sf = boundary_sf,
+        res = res,
+        close_mask = dot1("close_mask", TRUE),
+        close_iters = dot1("close_iters", 1),
+        resistance_rast = get_resistance_i(1),
+        dem_rast = get_dem_i(1),
+        use_tobler = dot1("use_tobler", TRUE),
+        tobler_v0_kmh = dot1("tobler_v0_kmh", 6),
+        tobler_a = dot1("tobler_a", 3.5),
+        tobler_b = dot1("tobler_b", 0.05),
+        min_speed_kmh = dot1("min_speed_kmh", 0.25),
+        anisotropy = dot1("anisotropy", "none"),
+        uphill_factor = dot1("uphill_factor", 1),
+        downhill_factor = dot1("downhill_factor", 1),
+        geodesic_engine = geodesic_engine
+      )
+    } else {
+      prepared_list <- vector("list", n_t)
+      
+      for (i in seq_len(n_t)) {
+        resistance_i <- get_resistance_i(i)
+        dem_i <- get_dem_i(i)
+        
+        prepared_list[[i]] <- prepare_geodesic_context(
+          boundary_sf = boundary_sf,
+          res = res,
+          close_mask = dot1("close_mask", TRUE),
+          close_iters = dot1("close_iters", 1),
+          resistance_rast = resistance_i,
+          dem_rast = dem_i,
+          use_tobler = dot1("use_tobler", TRUE),
+          tobler_v0_kmh = dot1("tobler_v0_kmh", 6),
+          tobler_a = dot1("tobler_a", 3.5),
+          tobler_b = dot1("tobler_b", 0.05),
+          min_speed_kmh = dot1("min_speed_kmh", 0.25),
+          anisotropy = dot1("anisotropy", "none"),
+          uphill_factor = dot1("uphill_factor", 1),
+          downhill_factor = dot1("downhill_factor", 1),
+          geodesic_engine = geodesic_engine
+        )
+      }
+    }
+  }
   
   for (i in seq_len(n_t)) {
     if (verbose) {
@@ -108,14 +179,11 @@ weighted_voronoi_time <- function(
       stop(sprintf("weight_col '%s' not found in points_list[[%d]].", weight_col, i))
     }
     
-    resistance_i <- NULL
-    if (!is.null(resistance_list)) {
-      resistance_i <- if (length(resistance_list) == 1) resistance_list[[1]] else resistance_list[[i]]
-    }
-    
-    dem_i <- NULL
-    if (!is.null(dem_list)) {
-      dem_i <- if (length(dem_list) == 1) dem_list[[1]] else dem_list[[i]]
+    resistance_i <- get_resistance_i(i)
+    dem_i <- get_dem_i(i)
+    prepared_i <- NULL
+    if (distance == "geodesic") {
+      prepared_i <- if (!is.null(prepared_shared)) prepared_shared else prepared_list[[i]]
     }
     
     out_i <- weighted_voronoi_domain(
@@ -124,8 +192,10 @@ weighted_voronoi_time <- function(
       boundary_sf = boundary_sf,
       distance = distance,
       geodesic_engine = geodesic_engine,
+      res = res,
       resistance_rast = resistance_i,
       dem_rast = dem_i,
+      prepared = prepared_i,
       verbose = FALSE,
       ...
     )
