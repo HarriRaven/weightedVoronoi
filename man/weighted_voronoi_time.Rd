@@ -49,6 +49,9 @@ times) or the same length as \code{points_list}.}
 
 \item{keep_summaries}{Logical. If \code{TRUE}, return summaries for each time step.}
 
+\item{prepared}{Optional prepared geodesic context created by
+\code{\link[=prepare_geodesic_context]{prepare_geodesic_context()}} for repeated compatible geodesic runs.}
+
 \item{verbose}{Logical. If \code{TRUE}, prints progress.}
 
 \item{...}{Additional arguments passed to \code{\link[=weighted_voronoi_domain]{weighted_voronoi_domain()}}.}
