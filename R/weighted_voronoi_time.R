@@ -22,6 +22,8 @@
 #' @param verbose Logical. If `TRUE`, prints progress.
 #' @param ... Additional arguments passed to [weighted_voronoi_domain()].
 #' @param res Numeric. Raster resolution in CRS units (e.g. metres).
+#' @param prepared Optional prepared geodesic context created by
+#'   [prepare_geodesic_context()] for repeated compatible geodesic runs.
 #'
 #' @details
 #' This first implementation assumes a static boundary and runs each time step

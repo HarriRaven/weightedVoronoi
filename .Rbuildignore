@@ -1,3 +1,12 @@
 ^LICENSE\.md$
 ^.*\.Rproj$
 ^\.Rproj\.user$
+^README\.Rmd$
+^doc$
+^Meta$
+^\.github$
+^docs$
+^bench$
+^_pkgdown\.yml$
+^paper\.bib$
+^paper\.md$
