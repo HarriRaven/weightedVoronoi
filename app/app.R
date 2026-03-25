@@ -5,8 +5,30 @@ library(weightedVoronoi)
 
 crs_use <- 32636
 
-make_boundary <- function(type = c("square", "concave", "corridor", "split"), crs = crs_use) {
+make_boundary <- function(type = c("square", "concave", "corridor", "rounded_irregular", "split"),
+                          crs = crs_use) {
   type <- match.arg(type)
+  
+  if (type == "rounded_irregular") {
+    theta <- seq(0, 2 * pi, length.out = 120)
+    r <- 450 +
+      70 * sin(3 * theta) +
+      45 * cos(5 * theta) +
+      30 * sin(7 * theta)
+    
+    x <- 600 + r * cos(theta)
+    y <- 450 + 0.75 * r * sin(theta)
+    
+    coords <- cbind(x, y)
+    coords <- rbind(coords, coords[1, , drop = FALSE])
+    
+    return(
+      st_sf(
+        geometry = st_sfc(st_polygon(list(coords))),
+        crs = crs
+      )
+    )
+  }
   
   coords <- switch(
     type,
@@ -29,7 +51,10 @@ make_boundary <- function(type = c("square", "concave", "corridor", "split"), cr
     )
   )
   
-  st_sf(geometry = st_sfc(st_polygon(list(coords))), crs = crs)
+  st_sf(
+    geometry = st_sfc(st_polygon(list(coords))),
+    crs = crs
+  )
 }
 
 make_points <- function(boundary_sf, n_points, seed, weight_spread = c("low", "medium", "high")) {
@@ -73,12 +98,17 @@ make_demo_dem <- function(boundary_sf, res) {
 }
 
 plot_tessellation <- function(boundary_sf, points_sf, out, title = "Tessellation") {
-  plot(st_geometry(boundary_sf), border = "black", lwd = 2, main = title)
-  if (!is.null(out$polygons) && nrow(out$polygons) > 0) {
-    plot(out$polygons["generator_id"], add = TRUE)
-  }
-  plot(st_geometry(points_sf), add = TRUE, pch = 21, bg = "red", cex = 1.1)
-  text(st_coordinates(points_sf), labels = points_sf$population, pos = 3, cex = 0.8)
+  plot(
+    st_geometry(boundary_sf),
+    col = "grey95",
+    border = "black",
+    lwd = 2,
+    main = title
+  )
+  plot(out$polygons["generator_id"], add = TRUE, border = NA)
+  plot(st_geometry(boundary_sf), add = TRUE, border = "black", lwd = 2)
+  plot(st_geometry(points_sf), add = TRUE, pch = 21, bg = "red", cex = 1.2)
+  text(st_coordinates(points_sf), labels = points_sf$population, pos = 3, cex = 0.85)
 }
 
 ui <- fluidPage(
@@ -90,6 +120,7 @@ ui <- fluidPage(
         "Square" = "square",
         "Concave" = "concave",
         "Corridor" = "corridor",
+        "Rounded irregular" = "rounded_irregular",
         "Split bottleneck" = "split"
       )),
       sliderInput("n_points", "Number of points", min = 1, max = 10, value = 5, step = 1),
@@ -121,8 +152,14 @@ ui <- fluidPage(
     ),
     mainPanel(
       tabsetPanel(
-        tabPanel("Map", plotOutput("map_plot", height = 550)),
+        tabPanel(
+          "Map",
+          plotOutput("map_plot", height = 550),
+          br(),
+          downloadButton("download_png", "Download PNG")
+        ),
         tabPanel("Summary", tableOutput("summary_tbl")),
+        tabPanel("Diagnostics", tableOutput("diagnostics_tbl")),
         tabPanel("Code", verbatimTextOutput("code_snippet"))
       )
     )
@@ -195,6 +232,7 @@ server <- function(input, output, session) {
           dem_rast <- make_demo_dem(boundary_sf, input$res)
           do.call(weighted_voronoi_domain, c(base_args, list(
             distance = "geodesic",
+            weight_transform = log10,
             dem_rast = dem_rast,
             use_tobler = TRUE,
             anisotropy = "terrain",
@@ -232,47 +270,53 @@ server <- function(input, output, session) {
   })
   
   output$recommendation <- renderText({
-    method <- input$method
-    if (method == "euclidean") {
-      paste(
+    req(input$method)
+    
+    switch(
+      input$method,
+      
+      euclidean = paste(
         "Recommended function: weighted_voronoi_domain()",
         "Distance: euclidean",
         "Best for: straight-line influence in unconstrained space",
         sep = "\n"
-      )
-    } else if (method == "geodesic") {
-      paste(
+      ),
+      
+      geodesic = paste(
         "Recommended function: weighted_voronoi_domain()",
         "Distance: geodesic",
-        "Engine: classic for general use; multisource for additive isotropic repeated runs",,
+        "Engine: classic by default; multisource for additive isotropic repeated runs",
         "Best for: domains where shape constrains access or interaction",
         sep = "\n"
-      )
-    } else if (method == "resistance") {
-      paste(
+      ),
+      
+      resistance = paste(
         "Recommended function: weighted_voronoi_domain()",
         "Distance: geodesic with resistance_rast",
         "Best for: land cover, friction, or infrastructure effects",
         sep = "\n"
-      )
-    } else if (method == "dem") {
-      paste(
+      ),
+      
+      dem = paste(
         "Recommended function: weighted_voronoi_domain()",
         "Distance: geodesic with dem_rast and use_tobler = TRUE",
         "Best for: isotropic slope-dependent movement cost",
         sep = "\n"
-      )
-    } else {
-      paste(
+      ),
+      
+      anisotropy = paste(
         "Recommended function: weighted_voronoi_domain()",
         "Distance: geodesic with anisotropy = 'terrain'",
         "Best for: directional uphill/downhill asymmetry",
         sep = "\n"
-      )
-    }
+      ),
+      
+      "No recommendation available."
+    )
   })
   
   output$code_snippet <- renderText({
+    req(input$method)
     s <- scenario()
     pts_txt <- paste0("# Example generated with seed = ", input$seed, "\n")
     
@@ -287,8 +331,7 @@ server <- function(input, output, session) {
         "  res = ", input$res, ",\n",
         "  weight_transform = log10,\n",
         "  distance = \"euclidean\",\n",
-        "  weight_model = \"multiplicative\",\n",
-        "  clip_to_boundary = TRUE\n",
+        "  weight_model = \"multiplicative\"\n",
         ")"
       ),
       geodesic = paste0(
@@ -299,8 +342,7 @@ server <- function(input, output, session) {
         "  boundary_sf = boundary_sf,\n",
         "  res = ", input$res, ",\n",
         "  weight_transform = log10,\n",
-        "  distance = \"geodesic\",\n",
-        "  close_mask = FALSE\n",
+        "  distance = \"geodesic\"\n",
         ")"
       ),
       resistance = paste0(
@@ -312,8 +354,7 @@ server <- function(input, output, session) {
         "  res = ", input$res, ",\n",
         "  weight_transform = log10,\n",
         "  distance = \"geodesic\",\n",
-        "  resistance_rast = resistance_rast,\n",
-        "  close_mask = FALSE\n",
+        "  resistance_rast = resistance_rast\n",
         ")"
       ),
       dem = paste0(
@@ -326,8 +367,7 @@ server <- function(input, output, session) {
         "  weight_transform = log10,\n",
         "  distance = \"geodesic\",\n",
         "  dem_rast = dem_rast,\n",
-        "  use_tobler = TRUE,\n",
-        "  close_mask = FALSE\n",
+        "  use_tobler = TRUE\n",
         ")"
       ),
       anisotropy = paste0(
@@ -342,12 +382,50 @@ server <- function(input, output, session) {
         "  use_tobler = TRUE,\n",
         "  anisotropy = \"terrain\",\n",
         "  uphill_factor = 3,\n",
-        "  downhill_factor = 1.2,\n",
-        "  close_mask = FALSE\n",
+        "  downhill_factor = 1.2\n",
         ")"
-      )
+      ),
+      "No code snippet available."
     )
   })
+  
+  output$diagnostics_tbl <- renderTable({
+    s <- scenario()
+    
+    d <- s$out$diagnostics
+    if (is.null(d)) return(NULL)
+    
+    data.frame(
+      metric = names(d),
+      value = vapply(d, function(x) {
+        if (length(x) == 1) {
+          if (is.logical(x)) return(as.character(x))
+          if (is.numeric(x)) return(format(signif(x, 4), trim = TRUE))
+          return(as.character(x))
+        }
+        paste0("<", class(x)[1], ">")
+      }, character(1)),
+      row.names = NULL,
+      stringsAsFactors = FALSE
+    )
+  })
+  
+  output$download_png <- downloadHandler(
+    filename = function() {
+      paste0("weightedVoronoi_", input$method, "_", input$boundary_type, ".png")
+    },
+    content = function(file) {
+      s <- scenario()
+      png(file, width = 1400, height = 1000, res = 160)
+      plot_tessellation(
+        boundary_sf = s$boundary_sf,
+        points_sf = s$points_sf,
+        out = s$out,
+        title = sprintf("%s (%.2fs)", s$method_label, s$elapsed)
+      )
+      dev.off()
+    }
+  )
 }
 
 shinyApp(ui, server)
