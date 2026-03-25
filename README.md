@@ -5,10 +5,9 @@
 
 # weightedVoronoi
 
-Tools for weighted spatial tessellation in constrained domains using
-Euclidean and geodesic distances. Produces complete, connected
-partitions that respect complex boundaries, heterogeneous point weights,
-resistance surfaces, and temporal or uncertainty-aware workflows.
+**weightedVoronoi** generates weighted spatial partitions that respect
+boundaries, landscape structure, and heterogeneous point influence using
+Euclidean or geodesic distance.
 
 🌐 Website: <https://HarriRaven.github.io/weightedVoronoi/>
 
@@ -21,8 +20,8 @@ resistance surfaces, and temporal or uncertainty-aware workflows.
 
 2)  Flexible weight semantics via weight_model and weight_power
 
-3)  Custom resistance surfaces and barriers via compose_resistance() and
-    add_barriers()
+3)  Custom resistance surfaces and barriers via `compose_resistance()`
+    and `add_barriers()`
 
 4)  Terrain-informed geodesic allocation via DEM/Tobler resistance
 
@@ -34,6 +33,34 @@ resistance surfaces, and temporal or uncertainty-aware workflows.
 7)  Uncertainty-aware tessellations with probability and entropy outputs
 
 8)  Temporal tessellation stacks with change and persistence maps
+
+## Choosing a workflow
+
+weightedVoronoi supports several spatial tessellation approaches
+depending on your assumptions about distance, landscape structure, and
+analysis goals.
+
+### Quick guide:
+
+Straight-line influence (fastest) → `distance = "euclidean"`
+
+Constrained by domain geometry (no crossing gaps/barriers) →
+`distance = "geodesic"`
+
+Landscape affects movement (e.g. terrain, land cover) → provide
+`resistance_rast` or `dem_rast`
+
+Uphill vs downhill matters (directional movement) →
+`anisotropy = "terrain"`
+
+Repeated runs (uncertainty or time series) → use
+`prepare_geodesic_context() + geodesic_engine = "multisource"`
+
+Uncertain weights → `weighted_voronoi_uncertainty()`
+
+Time series of tessellations → `weighted_voronoi_time()`
+
+For a more detailed guide, see the vignette.
 
 ## Installation
 
@@ -123,18 +150,27 @@ the vignette for worked examples.
 
 #### Fast workflows with prepared context
 
-ctx \<- prepare_geodesic_context(…)
+``` r
+ctx <- prepare_geodesic_context(...)
 
-weighted_voronoi_domain(…, prepared = ctx) weighted_voronoi_time(…,
-prepared = ctx) weighted_voronoi_uncertainty(…, prepared = ctx)
+weighted_voronoi_domain(..., prepared = ctx)
+```
 
-\#####Reusing Geodetic Contexts
+Fast reuse currently supported in:
+
+``` r
+weighted_voronoi_domain(..., prepared = ctx)
+```
+
+Temporal and uncertainty workflows automatically reuse internal
+preparation and do not currently accept external prepared contexts
+
+##### Reusing Geodetic Contexts
 
 ``` r
 ctx <- prepare_geodesic_context(
   boundary_sf = boundary_sf,
   res = 20,
-  distance = "geodesic",
   geodesic_engine = "multisource"
 )
 

@@ -28,6 +28,114 @@ Spatial allocation around point locations is a recurring requirement in ecology 
 
 The weightedVoronoi package extends this framework by allowing (i) generator-specific weights, (ii) tessellations constrained to arbitrary polygonal domains using either Euclidean or geodesic distance, (iii) optional resistance- and terrain-informed geodesic allocation, and (iv) uncertainty-aware and temporal tessellation workflows.
 
+# Choosing an appropriate workflow
+
+weightedVoronoi provides multiple tessellation methods that differ in how distance is defined, how movement is constrained, and how analyses are structured. The appropriate choice depends on both your data and your research question.
+
+## 1. Euclidean vs geodesic distance
+
+The first decision is how distance should be measured.
+
+- Euclidean tessellation (```distance = "euclidean"```)
+    Uses straight-line distance
+    Fast and simple
+    Appropriate when space is open and unconstrained
+- Geodesic tessellation (```distance = "geodesic"```)
+    Uses shortest-path distance within the domain
+    Respects boundaries, concavities, and barriers
+    Recommended when movement cannot occur across gaps (e.g. coastlines, habitat patches)
+
+## 2. Should landscape resistance be included?
+
+Geodesic distance can be modified by environmental resistance:
+
+- No resistance (default)
+    → movement cost is uniform
+- Custom resistance surface (```resistance_rast```)
+    → incorporate land cover, risk, infrastructure, etc.
+- Elevation-based resistance (```dem_rast, use_tobler = TRUE```)
+    → movement cost increases with slope
+
+Use resistance when:
+
+- movement is not equally easy everywhere
+- terrain or land cover affects accessibility
+
+## 3. Is movement direction-dependent?
+
+By default, resistance is isotropic:
+- cost depends on slope magnitude only
+
+For directional effects (e.g. uphill vs downhill):
+- set ```anisotropy = "terrain"```
+
+This enables:
+- asymmetric movement costs
+- more realistic modelling in steep terrain
+
+## 4. Single run vs repeated workflows
+
+Single tessellation
+- Use ```weighted_voronoi_domain()``` for:
+
+1) one-off analyses
+2) static allocation problems
+
+### Repeated geodesic runs (performance-critical)
+
+If you are running many tessellations with the same domain:
+
+```r
+ctx <- prepare_geodesic_context(...)
+```
+
+Then reuse:
+
+```r
+weighted_voronoi_domain(..., prepared = ctx)
+```
+
+This avoids rebuilding the transition graph and can substantially reduce runtime.
+
+## 5. Multisource vs classic geodesic engine
+
+For geodesic tessellations:
+
+- classic engine
+    general-purpose
+    works with all configurations
+- multisource engine
+    faster for repeated runs
+    requires:
+      ```weight_model = "additive"```
+      ```anisotropy = "none"```
+
+Recommended when:
+
+- running many simulations
+- performing uncertainty or temporal analyses
+
+## 6. Uncertainty and temporal workflows
+
+### Uncertainty in weights
+Use:
+
+```r
+weighted_voronoi_uncertainty()
+```
+to:
+- propagate uncertainty in generator weights
+- obtain probability and entropy maps
+
+### Temporal tessellations
+Use:
+
+```r
+weighted_voronoi_time()
+```
+to:
+- analyse changes through time
+- generate change and persistence maps
 
 ## Example data
 
