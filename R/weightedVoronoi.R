@@ -427,16 +427,18 @@ freq_noNA <- function(x) {
 # Remove disconnected "islands" so each generator has one connected region.
 # Keeps the connected component that contains the generator point's cell.
 # Reassigns removed cells by neighbor majority fill (and final nearest-neighbor fill if needed).
-remove_islands <- function(ID, points_sf, min_cells = 5, max_iter_fill = 50) {
+remove_islands <- function(ID, points_sf, domain_mask, min_cells = 5, max_iter_fill = 50) {
   stopifnot(inherits(ID, "SpatRaster"))
+  stopifnot(inherits(domain_mask, "SpatRaster"))
   
   ID2 <- ID
+  mask_vals <- terra::values(domain_mask, mat = FALSE)
   
   pts_v <- terra::vect(points_sf)
   xy <- terra::crds(pts_v)
   pt_cells <- terra::cellFromXY(ID2, xy)
   
-  labs <- sort(unique(terra::values(ID2)))
+  labs <- sort(unique(terra::values(ID2, mat = FALSE)))
   labs <- labs[is.finite(labs)]
   
   for (lab in labs) {
@@ -446,51 +448,77 @@ remove_islands <- function(ID, points_sf, min_cells = 5, max_iter_fill = 50) {
     fr <- freq_noNA(p)
     if (is.null(fr) || nrow(fr) == 0) next
     
-    # Identify which patch contains the generator point for this label
     lab_index <- as.integer(lab)
-    
     keep_patch <- NA_real_
+    
     if (lab_index >= 1 && lab_index <= length(pt_cells) && is.finite(pt_cells[lab_index])) {
-      keep_patch <- terra::values(p)[pt_cells[lab_index]]
+      keep_patch <- terra::values(p, mat = FALSE)[pt_cells[lab_index]]
     }
     
-    # Fallback: keep largest patch
+    # Fallback: keep largest connected component
     if (!is.finite(keep_patch)) {
-      fr <- fr[order(fr$count, decreasing = TRUE), ]
+      fr <- fr[order(fr$count, decreasing = TRUE), , drop = FALSE]
       keep_patch <- fr$value[1]
     }
     
-    # Remove small disconnected components (keeps large secondary components)
-    drop_patches <- fr$value[fr$value != keep_patch & fr$count < min_cells]
+    # Drop ALL disconnected patches, not just small ones
+    drop_patches <- fr$value[fr$value != keep_patch]
     
     if (length(drop_patches)) {
       ID2 <- terra::ifel(p %in% drop_patches, NA, ID2)
     }
   }
   
-  # Fill NA holes by neighbor majority
+  # Fill removed cells only inside domain
   for (k in seq_len(max_iter_fill)) {
-    n_na <- terra::global(is.na(ID2), "sum", na.rm = TRUE)[1, 1]
-    if (is.na(n_na) || n_na == 0) break
+    vals <- terra::values(ID2, mat = FALSE)
+    n_na <- sum(is.na(vals) & mask_vals == 1, na.rm = TRUE)
+    if (n_na == 0) break
     
     neigh <- terra::focal(
-      ID2, w = matrix(1, 3, 3), fun = mode1,
-      na.policy = "omit", fillvalue = NA
+      ID2,
+      w = matrix(1, 3, 3),
+      fun = mode1,
+      na.policy = "omit",
+      fillvalue = NA
     )
-    ID2 <- terra::ifel(is.na(ID2), neigh, ID2)
+    
+    neigh_vals <- terra::values(neigh, mat = FALSE)
+    fill_idx <- which(is.na(vals) & mask_vals == 1 & !is.na(neigh_vals))
+    if (!length(fill_idx)) break
+    
+    vals[fill_idx] <- neigh_vals[fill_idx]
+    vals[mask_vals != 1] <- NA
+    ID2 <- terra::setValues(ID2, vals)
   }
   
-  # Final safety net (version-safe): keep filling by local majority
-  for (k in seq_len(200)) {
-    n_na_final <- terra::global(is.na(ID2), "sum", na.rm = TRUE)[1, 1]
-    if (is.na(n_na_final) || n_na_final == 0) break
+  # Final cleanup: remove any tiny stray fragments created during reassignment
+  for (lab in labs) {
+    m <- (ID2 == lab)
+    p <- terra::patches(m, directions = 8)
+    fr <- freq_noNA(p)
+    if (is.null(fr) || nrow(fr) == 0) next
     
-    neigh <- terra::focal(
-      ID2, w = matrix(1, 3, 3), fun = mode1,
-      na.policy = "omit", fillvalue = NA
-    )
-    ID2 <- terra::ifel(is.na(ID2), neigh, ID2)
+    lab_index <- as.integer(lab)
+    keep_patch <- NA_real_
+    
+    if (lab_index >= 1 && lab_index <= length(pt_cells) && is.finite(pt_cells[lab_index])) {
+      keep_patch <- terra::values(p, mat = FALSE)[pt_cells[lab_index]]
+    }
+    if (!is.finite(keep_patch)) {
+      fr <- fr[order(fr$count, decreasing = TRUE), , drop = FALSE]
+      keep_patch <- fr$value[1]
+    }
+    
+    small_other <- fr$value[fr$value != keep_patch & fr$count < min_cells]
+    if (length(small_other)) {
+      ID2 <- terra::ifel(p %in% small_other, NA, ID2)
+    }
   }
+  
+  vals <- terra::values(ID2, mat = FALSE)
+  vals[mask_vals != 1] <- NA
+  ID2 <- terra::setValues(ID2, vals)
   
   ID2
 }
@@ -615,9 +643,12 @@ weighted_voronoi <- function(points_sf,
   # ---- Partition-based output + island removal ----
   ID <- force_points_to_own_cell(ID, points_sf)
   
+  domain_mask <- terra::ifel(!is.na(r), 1, NA)
+  
   ID_clean <- remove_islands(
     ID,
     points_sf = points_sf,
+    domain_mask = domain_mask,
     min_cells = island_min_cells,
     max_iter_fill = island_fill_iter
   )
@@ -705,6 +736,12 @@ weighted_voronoi_geodesic <- function(points_sf, weight_col, boundary_sf,
   anisotropy <- match.arg(anisotropy)
   geodesic_engine <- match.arg(geodesic_engine)
   
+  if (!is.null(prepared)) {
+    if (!identical(sf::st_crs(boundary_sf), sf::st_crs(prepared$boundary_sf))) {
+      stop("prepared context CRS does not match boundary_sf CRS.")
+    }
+  }
+  
   # --- CRS / validity ---
   if (sf::st_is_longlat(points_sf)) stop("Project to a metric CRS first.")
   if (sf::st_crs(points_sf) != sf::st_crs(boundary_sf)) {
@@ -750,37 +787,6 @@ weighted_voronoi_geodesic <- function(points_sf, weight_col, boundary_sf,
       close_mask = close_mask,
       close_iters = close_iters
     )
-    
-    if (anisotropy == "none") {
-      resistance <- .prep_resistance(
-        mask_r = r,
-        resistance_rast = resistance_rast,
-        dem_rast = dem_rast,
-        use_tobler = use_tobler,
-        tobler_v0_kmh = tobler_v0_kmh,
-        tobler_a = tobler_a,
-        tobler_b = tobler_b,
-        min_speed_kmh = min_speed_kmh
-      )
-      
-      tr <- .build_isotropic_transition(resistance)
-      
-    } else if (anisotropy == "terrain") {
-      if (is.null(dem_rast)) {
-        stop("anisotropy = 'terrain' requires dem_rast.")
-      }
-      
-      tr <- .build_terrain_anisotropic_transition(
-        dem_rast = dem_rast,
-        mask_r = r,
-        uphill_factor = uphill_factor,
-        downhill_factor = downhill_factor,
-        v0_kmh = tobler_v0_kmh,
-        a = tobler_a,
-        b = tobler_b,
-        min_speed_kmh = min_speed_kmh
-      )
-    }
   }
   
   # --- weights ---
@@ -851,10 +857,12 @@ weighted_voronoi_geodesic <- function(points_sf, weight_col, boundary_sf,
   ID <- engine_out$allocation
   all_unreachable <- engine_out$unreachable
   
-  # Fill local gaps, enforce point ownership, remove islands
+  domain_mask <- terra::ifel(!is.na(r), 1, NA)
+  
   ID_clean <- .postprocess_allocation(
     ID = ID,
     points_sf = points_sf,
+    domain_mask = domain_mask,
     island_min_cells = island_min_cells,
     island_fill_iter = island_fill_iter,
     fill_iter = 300
@@ -870,6 +878,23 @@ weighted_voronoi_geodesic <- function(points_sf, weight_col, boundary_sf,
     poly_sf <- sf::st_as_sf(poly)
     sf::st_crs(poly_sf) <- sf::st_crs(boundary_sf)
     names(poly_sf)[names(poly_sf) != "geometry"] <- "generator_id"
+    
+    # Final exact clipping to true boundary geometry
+    poly_sf <- sf::st_make_valid(poly_sf)
+    bnd_sf <- sf::st_make_valid(boundary_sf)
+    poly_sf <- sf::st_intersection(poly_sf, bnd_sf)
+    
+    if (nrow(poly_sf) == 0) {
+      stop("Geodesic clipping produced 0 polygons. Check boundary validity and CRS.")
+    }
+    
+    poly_sf <- poly_sf |>
+      dplyr::group_by(generator_id) |>
+      dplyr::summarise(
+        dplyr::across(dplyr::where(~ !inherits(.x, "sfc")), \(z) z[1]),
+        do_union = TRUE
+      ) |>
+      dplyr::ungroup()
     
     # Attach attributes
     poly_sf$weight <- w[poly_sf$generator_id]

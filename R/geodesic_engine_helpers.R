@@ -13,6 +13,7 @@
     weight_vec = weight_vec,
     weight_model = weight_model,
     weight_power = weight_power,
+    template_rast = template_rast,
     verbose = verbose
   )
   
@@ -77,6 +78,10 @@
   
   n <- terra::ncell(template_rast)
   
+  # --- DEBUG BLOCK 1: immediately after graph/template setup ---
+  mask_vals <- terra::values(template_rast, mat = FALSE)
+  inside_mask <- !is.na(mask_vals)
+  
   # Source cells from point locations
   pts_v <- terra::vect(points_sf)
   xy <- terra::crds(pts_v)
@@ -90,9 +95,13 @@
   dist <- rep(Inf, n)
   owner <- rep(NA_integer_, n)
   
-  # Valid domain cells only
-  mask_vals <- terra::values(template_rast, mat = FALSE)
-  inside_domain <- !is.na(mask_vals)
+  # Cells actually represented in the multisource graph
+  inside_graph <- rep(FALSE, n)
+  graph_nodes <- unique(c(from, to))
+  inside_graph[graph_nodes] <- TRUE
+  
+  # Effective domain for multisource propagation
+  inside_domain <- inside_mask & inside_graph
   
   # Initialise each source with additive offset = 1 / weight
   # If multiple generators fall in the same cell, keep the lower initial cost;
@@ -113,6 +122,7 @@
   heap <- .heap_new(max(1024L, length(src_cells) * 4L))
   
   seeded <- which(is.finite(dist) & !is.na(owner))
+  
   for (cell in seeded) {
     .heap_push(heap, key = dist[cell], node = cell)
   }
@@ -172,6 +182,8 @@
   unreachable_vals <- inside_domain & !is.finite(dist)
   unreachable_vals[!inside_domain] <- NA
   unreachable <- terra::setValues(unreachable, unreachable_vals)
+  
+  alloc_vals <- terra::values(allocation, mat = FALSE)
   
   list(
     allocation = allocation,

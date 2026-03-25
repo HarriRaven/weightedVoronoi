@@ -2,39 +2,69 @@
   if (!requireNamespace("gdistance", quietly = TRUE)) stop("Install gdistance.")
   if (!requireNamespace("Matrix", quietly = TRUE)) stop("Install Matrix.")
   if (!inherits(template_rast, "SpatRaster")) stop("template_rast must be a terra SpatRaster.")
-
-  # Transition matrix stores conductance; convert to edge cost
+  
   TM <- gdistance::transitionMatrix(tr)
-  sm <- Matrix::summary(TM)
-
-  # Keep only finite positive conductance edges
-  ok <- is.finite(sm$x) & sm$x > 0
+  
+  adj <- gdistance::adjacencyFromTransition(tr)
+  if (is.null(adj) || nrow(adj) == 0) {
+    stop("Transition graph has no adjacent cell pairs.")
+  }
+  
+  transition_cells <- methods::slot(tr, "transitionCells")
+  if (length(transition_cells) != nrow(TM)) {
+    stop("transitionCells length does not match transition matrix dimension.")
+  }
+  
+  row_idx <- match(adj[, 1], transition_cells)
+  col_idx <- match(adj[, 2], transition_cells)
+  
+  if (anyNA(row_idx) || anyNA(col_idx)) {
+    stop("Could not map adjacency pairs to transition matrix indices.")
+  }
+  
+  cond_all <- as.numeric(TM[cbind(row_idx, col_idx)])
+  
+  ok <- is.finite(cond_all) & cond_all > 0
   if (!any(ok)) stop("Transition matrix has no finite positive edges.")
-
-  from0 <- sm$i[ok]
-  to0   <- sm$j[ok]
-  cond0 <- sm$x[ok]
-
-  # For isotropic multisource mode, always make the graph explicitly bidirectional.
-  # This avoids any ambiguity about how the sparse matrix stores symmetric entries.
+  
+  from0 <- adj[ok, 1]
+  to0   <- adj[ok, 2]
+  cond0 <- cond_all[ok]
+  
+  # Restrict to cells inside the domain mask
+  mask_vals <- terra::values(template_rast, mat = FALSE)
+  inside_domain <- !is.na(mask_vals)
+  
+  keep <- inside_domain[from0] & inside_domain[to0]
+  from0 <- from0[keep]
+  to0   <- to0[keep]
+  cond0 <- cond0[keep]
+  
+  if (!length(cond0)) {
+    stop("No finite positive edges remain inside the domain.")
+  }
+  
   offdiag <- from0 != to0
-
+  
   from <- c(from0, to0[offdiag])
   to   <- c(to0,   from0[offdiag])
   conductance <- c(cond0, cond0[offdiag])
-
+  
   edge_cost <- 1 / conductance
-
-  # Sort by source node to allow fast outgoing-edge lookup
+  
   ord <- order(from, to)
   from <- from[ord]
   to <- to[ord]
   edge_cost <- edge_cost[ord]
-
+  
   n <- terra::ncell(template_rast)
+  if (length(from) && max(c(from, to), na.rm = TRUE) > n) {
+    stop("Mapped transition indices exceed template_rast cell count.")
+  }
+  
   counts <- tabulate(from, nbins = n)
-  start_idx <- cumsum(c(1L, counts))  # outgoing edges for u are start_idx[u]:(start_idx[u+1]-1)
-
+  start_idx <- cumsum(c(1L, counts))
+  
   list(
     from = from,
     to = to,
