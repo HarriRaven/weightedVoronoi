@@ -9,8 +9,11 @@ template:
 navbar:
   structure:
     left:  [intro, reference, articles]
-    right: [github]
+    right: [demo, github]
   components:
+    demo:
+      text: Demo
+      href: https://harriraven.shinyapps.io/weightedVoronoi-demo/
     github:
       icon: fab fa-github
       href: https://github.com/HarriRaven/weightedVoronoi
@@ -24,6 +27,8 @@ home:
     scalable multisource geodesics, uncertainty-aware tessellations, and temporal
     tessellation workflows.
   links:
+  - text: Live demo app
+    href: https://harriraven.shinyapps.io/weightedVoronoi-demo/
   - text: Get started (vignette)
     href: articles/weighted-voronoi.html
   - text: Source code
@@ -35,6 +40,10 @@ reference:
       - weighted_voronoi_domain
       - weighted_voronoi
       - weighted_voronoi_geodesic
+
+  - title: "Prepared geodesic workflows"
+    contents:
+      - prepare_geodesic_context
 
   - title: "Advanced workflows"
     contents:

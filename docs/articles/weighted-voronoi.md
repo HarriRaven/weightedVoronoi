@@ -18,10 +18,118 @@ dividing space among generators, but standard implementations assume
 uniform influence and unconstrained Euclidean distance.
 
 The weightedVoronoi package extends this framework by allowing (i)
-generator-specific weights and (ii) tessellations constrained to
-arbitrary polygonal domains using either Euclidean or geodesic distance.
-This vignette demonstrates the use of the package on a representative
-example with a complex domain boundary.
+generator-specific weights, (ii) tessellations constrained to arbitrary
+polygonal domains using either Euclidean or geodesic distance, (iii)
+optional resistance- and terrain-informed geodesic allocation, and (iv)
+uncertainty-aware and temporal tessellation workflows.
+
+## Choosing an appropriate workflow
+
+weightedVoronoi provides multiple tessellation methods that differ in
+how distance is defined, how movement is constrained, and how analyses
+are structured. The appropriate choice depends on both your data and
+your research question.
+
+### 1. Euclidean vs geodesic distance
+
+The first decision is how distance should be measured.
+
+- Euclidean tessellation (`distance = "euclidean"`) Uses straight-line
+  distance Fast and simple Appropriate when space is open and
+  unconstrained
+- Geodesic tessellation (`distance = "geodesic"`) Uses shortest-path
+  distance within the domain Respects boundaries, concavities, and
+  barriers Recommended when movement cannot occur across gaps
+  (e.g. coastlines, habitat patches)
+
+### 2. Should landscape resistance be included?
+
+Geodesic distance can be modified by environmental resistance:
+
+- No resistance (default) → movement cost is uniform
+- Custom resistance surface (`resistance_rast`) → incorporate land
+  cover, risk, infrastructure, etc.
+- Elevation-based resistance (`dem_rast, use_tobler = TRUE`) → movement
+  cost increases with slope
+
+Use resistance when:
+
+- movement is not equally easy everywhere
+- terrain or land cover affects accessibility
+
+### 3. Is movement direction-dependent?
+
+By default, resistance is isotropic: - cost depends on slope magnitude
+only
+
+For directional effects (e.g. uphill vs downhill): - set
+`anisotropy = "terrain"`
+
+This enables: - asymmetric movement costs - more realistic modelling in
+steep terrain
+
+### 4. Single run vs repeated workflows
+
+Single tessellation - Use
+[`weighted_voronoi_domain()`](https://HarriRaven.github.io/weightedVoronoi/reference/weighted_voronoi_domain.md)
+for:
+
+1.  one-off analyses
+2.  static allocation problems
+
+#### Repeated geodesic runs (performance-critical)
+
+If you are running many tessellations with the same domain:
+
+``` r
+ctx <- prepare_geodesic_context(...)
+```
+
+Then reuse:
+
+``` r
+weighted_voronoi_domain(..., prepared = ctx)
+```
+
+This avoids rebuilding the transition graph and can substantially reduce
+runtime.
+
+### 5. Multisource vs classic geodesic engine
+
+For geodesic tessellations:
+
+- classic engine general-purpose works with all configurations
+- multisource engine faster for repeated runs requires:
+  `weight_model = "additive"` `anisotropy = "none"`
+
+Recommended when:
+
+- running many simulations
+- performing uncertainty or temporal analyses
+
+### 6. Uncertainty and temporal workflows
+
+#### Uncertainty in weights
+
+Use:
+
+``` r
+weighted_voronoi_uncertainty()
+```
+
+to: - propagate uncertainty in generator weights - obtain probability
+and entropy maps
+
+#### Temporal tessellations
+
+Use:
+
+``` r
+weighted_voronoi_time()
+```
+
+to: - analyse changes through time - generate change and persistence
+maps
 
 ### Example data
 
@@ -111,6 +219,28 @@ plot(out_geo$polygons["generator_id"], add = TRUE)
 plot(st_geometry(points_sf), add = TRUE, pch = 21, bg = "red")
 ```
 
+By default, geodesic allocation uses the `"classic"` engine, which
+computes one accumulated-cost surface per generator. For additive
+isotropic geodesic tessellations, a faster `"multisource"` engine is
+also available:
+
+``` r
+out_geo_fast <- weighted_voronoi_domain(
+  points_sf = points_sf,
+  weight_col = "population",
+  boundary_sf = boundary_sf,
+  res = 20,
+  distance = "geodesic",
+  weight_model = "additive",
+  geodesic_engine = "multisource",
+  verbose = FALSE
+)
+```
+
+The multisource engine is currently available for additive isotropic
+geodesic tessellations (`weight_model = "additive"` and
+`anisotropy = "none"`).
+
 ### Custom resistance surfaces and barriers
 
 In many ecological and social–ecological applications, effective
@@ -162,7 +292,7 @@ plot(out_geo_res$polygons["generator_id"], add = TRUE)
 plot(st_geometry(points_sf), add = TRUE, pch = 21, bg = "red")
 ```
 
-### Geodesic tessellations with elevation-dependent resistance
+### Geodesic tessellations with isotropic elevation-dependent resistance
 
 In many ecological and social–ecological applications, effective
 distance is shaped not only by domain geometry but also by environmental
@@ -203,6 +333,215 @@ plot(out_geo_dem$polygons["generator_id"], main = "Geodesic + Tobler resistance"
 plot(st_geometry(points_sf), add = TRUE, pch = 21, bg = "red")
 ```
 
+### Terrain-anisotropic geodesic tessellations
+
+The DEM-based geodesic workflow above uses isotropic resistance:
+movement cost depends on slope magnitude, but not on movement direction.
+In some applications, however, uphill and downhill movement should
+differ. For example, steep uphill travel may be more costly than
+downhill travel, even across the same terrain.
+
+`weightedVoronoi` therefore also supports a terrain-anisotropic geodesic
+mode, in which movement between neighbouring raster cells becomes
+direction-dependent. This requires a DEM and uses a directed transition
+graph internally.
+
+Below, we use a simple synthetic eastward-rising DEM and compare
+isotropic and terrain-anisotropic geodesic allocation.
+
+``` r
+# Terrain-anisotropy example (self-contained)
+crs_use2 <- 32636
+
+boundary_sf2 <- st_sf(
+  id = 1,
+  geometry = st_sfc(
+    st_polygon(list(rbind(
+      c(0, 0),
+      c(1200, 0),
+      c(1200, 900),
+      c(800, 900),
+      c(800, 500),
+      c(400, 500),
+      c(400, 900),
+      c(0, 900),
+      c(0, 0)
+    ))),
+    crs = crs_use2
+  )
+)
+
+dem_aniso <- terra::rast(
+  ext = terra::ext(terra::vect(boundary_sf2)),
+  resolution = 20,
+  crs = terra::crs(terra::vect(boundary_sf2))
+)
+
+xy2 <- terra::crds(dem_aniso, df = TRUE)
+terra::values(dem_aniso) <- xy2$x * 10
+
+pts2 <- st_sf(
+  village = c("A", "B"),
+  population = c(1, 1),
+  geometry = st_sfc(
+    st_point(c(200, 450)),
+    st_point(c(950, 450))
+  ),
+  crs = crs_use2
+)
+
+out_geo_iso2 <- weighted_voronoi_domain(
+  points_sf = pts2,
+  weight_col = "population",
+  boundary_sf = boundary_sf2,
+  res = 20,
+  distance = "geodesic",
+  dem_rast = dem_aniso,
+  use_tobler = TRUE,
+  anisotropy = "none",
+  verbose = FALSE
+)
+#> Warning: attribute variables are assumed to be spatially constant throughout
+#> all geometries
+
+out_geo_aniso2 <- weighted_voronoi_domain(
+  points_sf = pts2,
+  weight_col = "population",
+  boundary_sf = boundary_sf2,
+  res = 20,
+  distance = "geodesic",
+  dem_rast = dem_aniso,
+  use_tobler = TRUE,
+  anisotropy = "terrain",
+  uphill_factor = 3,
+  downhill_factor = 1.2,
+  verbose = FALSE
+)
+#> Warning: attribute variables are assumed to be spatially constant throughout
+#> all geometries
+
+par(mfrow = c(1, 2))
+plot(st_geometry(boundary_sf2), border = "black", lwd = 2, main = "Isotropic DEM geodesic")
+plot(out_geo_iso2$polygons["generator_id"], add = TRUE)
+plot(st_geometry(pts2), add = TRUE, pch = 21, bg = "red")
+
+plot(st_geometry(boundary_sf2), border = "black", lwd = 2, main = "Terrain-anisotropic geodesic")
+plot(out_geo_aniso2$polygons["generator_id"], add = TRUE)
+plot(st_geometry(pts2), add = TRUE, pch = 21, bg = "red")
+```
+
+![](weighted-voronoi_files/figure-html/unnamed-chunk-2-1.png)
+
+``` r
+
+par(mfrow = c(1, 1))
+```
+
+In this example, uphill and downhill movement are treated differently,
+so the terrain-anisotropic tessellation can diverge from the isotropic
+DEM-based result. The parameters `uphill_factor` and `downhill_factor`
+control the strength of this directional asymmetry.
+
+### Uncertainty-aware tessellations
+
+In some applications, generator weights are not known exactly. To
+explore how this uncertainty affects allocation, `weightedVoronoi` can
+repeat the tessellation under stochastic perturbation of generator
+weights and summarise the results as per-cell membership probabilities
+and entropy.
+
+In the current implementation, uncertainty is applied to generator
+weights only. For each simulation, weights are perturbed using a
+lognormal multiplicative model, the tessellation is recomputed, and the
+allocation rasters are combined into probability surfaces. Entropy is
+then used to summarise spatial uncertainty: low entropy indicates stable
+assignment, whereas high entropy indicates cells that switch more often
+among generators.
+
+``` r
+crs_u <- "EPSG:32636"
+
+boundary_u <- st_sf(
+  geometry = st_sfc(st_polygon(list(rbind(
+    c(0, 0),
+    c(200, 0),
+    c(200, 200),
+    c(0, 200),
+    c(0, 0)
+  )))),
+  crs = crs_u
+)
+
+points_u <- st_sf(
+  population = c(0.01, 0.02),
+  geometry = st_sfc(
+    st_point(c(60, 100)),
+    st_point(c(140, 100))
+  ),
+  crs = crs_u
+)
+
+out_u <- weighted_voronoi_uncertainty(
+  points_sf = points_u,
+  weight_col = "population",
+  boundary_sf = boundary_u,
+  n_sim = 100,
+  weight_sd = 0.8,
+  distance = "geodesic",
+  geodesic_engine = "multisource",
+  weight_model = "additive",
+  verbose = FALSE,
+  seed = 1
+)
+
+plot(out_u$entropy, main = "Entropy")
+plot(terra::vect(points_u), add = TRUE, pch = 21, col = "black", bg = "red")
+```
+
+![](weighted-voronoi_files/figure-html/unnamed-chunk-3-1.png)
+
+### Temporal tessellations
+
+`weightedVoronoi` can also run tessellations across a sequence of
+time-specific point datasets. This makes it possible to compare
+allocation through time while allowing generator weights, locations, and
+resistance inputs to vary by time step.
+
+``` r
+pts_t1 <- points_u
+pts_t2 <- points_u
+pts_t2$population <- c(0.02, 0.01)
+
+out_time <- weighted_voronoi_time(
+  points_list = list(time1 = pts_t1, time2 = pts_t2),
+  weight_col = "population",
+  boundary_sf = boundary_u,
+  distance = "geodesic",
+  geodesic_engine = "multisource",
+  weight_model = "additive",
+  verbose = FALSE
+)
+#> Warning: attribute variables are assumed to be spatially constant throughout
+#> all geometries
+#> Warning: attribute variables are assumed to be spatially constant throughout
+#> all geometries
+
+par(mfrow = c(1, 2))
+plot(out_time$change_map_first_last, main = "Change map")
+plot(out_time$persistence, main = "Persistence")
+```
+
+![](weighted-voronoi_files/figure-html/unnamed-chunk-4-1.png)
+
+``` r
+par(mfrow = c(1, 1))
+```
+
+In this example, `change_map_first_last` identifies cells whose
+allocation differs between the first and last time step, while
+`persistence` highlights cells that retain the same allocation across
+the full temporal sequence.
+
 ## Comparing Euclidean and geodesic tessellations
 
 Although both tessellations fully partition the domain, they differ in
@@ -231,6 +570,19 @@ out_geo$summary
 
 - Distance metric: Geodesic distance is recommended when domain geometry
   strongly constrains access or interaction.
+
+- Terrain anisotropy: Use `anisotropy = "terrain"` with `dem_rast` when
+  uphill and downhill movement should differ.
+
+- Uncertainty: If entropy is zero everywhere, the tessellation may
+  simply be robust to the perturbation level used; stronger
+  perturbations or a smaller spatial domain may be needed to reveal
+  uncertainty.
+
+- Temporal analysis:
+  [`weighted_voronoi_time()`](https://HarriRaven.github.io/weightedVoronoi/reference/weighted_voronoi_time.md)
+  supports time-specific point datasets and can return change and
+  persistence maps.
 
 ## Summary
 

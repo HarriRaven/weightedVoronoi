@@ -22,7 +22,8 @@ Distances are calculated as shortest-path distances through a rasterised domain 
   <button class="nav-link dropdown-toggle" type="button" id="dropdown-articles" data-bs-toggle="dropdown" aria-expanded="false" aria-haspopup="true">Articles</button>
   <ul class="dropdown-menu" aria-labelledby="dropdown-articles"><li><a class="dropdown-item" href="../articles/weighted-voronoi.html">Weighted spatial tessellations in constrained domains</a></li>
   </ul></li>
-      </ul><ul class="navbar-nav"><li class="nav-item"><a class="external-link nav-link" href="https://github.com/HarriRaven/weightedVoronoi" aria-label="GitHub repository"><span class="fa fab fa-github"></span></a></li>
+      </ul><ul class="navbar-nav"><li class="nav-item"><a class="external-link nav-link" href="https://harriraven.shinyapps.io/weightedVoronoi-demo/">Demo</a></li>
+<li class="nav-item"><a class="external-link nav-link" href="https://github.com/HarriRaven/weightedVoronoi" aria-label="GitHub repository"><span class="fa fab fa-github"></span></a></li>
       </ul></div>
 
 
@@ -60,8 +61,14 @@ Distances are calculated as shortest-path distances through a rasterised domain 
 <span>  tobler_a <span class="op">=</span> <span class="fl">3.5</span>,</span>
 <span>  tobler_b <span class="op">=</span> <span class="fl">0.05</span>,</span>
 <span>  min_speed_kmh <span class="op">=</span> <span class="fl">0.25</span>,</span>
+<span>  anisotropy <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"none"</span>, <span class="st">"terrain"</span><span class="op">)</span>,</span>
+<span>  uphill_factor <span class="op">=</span> <span class="fl">1</span>,</span>
+<span>  downhill_factor <span class="op">=</span> <span class="fl">1</span>,</span>
 <span>  island_min_cells <span class="op">=</span> <span class="fl">5</span>,</span>
 <span>  island_fill_iter <span class="op">=</span> <span class="fl">50</span>,</span>
+<span>  geodesic_engine <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"classic"</span>, <span class="st">"multisource"</span><span class="op">)</span>,</span>
+<span>  return_polygons <span class="op">=</span> <span class="cn">TRUE</span>,</span>
+<span>  prepared <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  verbose <span class="op">=</span> <span class="cn">TRUE</span></span>
 <span><span class="op">)</span></span></code></pre></div>
     </div>
@@ -140,12 +147,48 @@ slope into isotropic movement cost.</p></dd>
 <dd><p>Minimum allowed speed to avoid infinite costs.</p></dd>
 
 
+<dt id="arg-anisotropy">anisotropy<a class="anchor" aria-label="anchor" href="#arg-anisotropy"></a></dt>
+<dd><p>Character. Directional cost model for geodesic distance.</p><dl><dt>"none"</dt>
+<dd><p>Standard isotropic geodesic distance (default).</p></dd>
+
+<dt>"terrain"</dt>
+<dd><p>Direction-dependent movement based on terrain slope (DEM required).</p></dd>
+
+
+</dl></dd>
+
+
+<dt id="arg-uphill-factor">uphill_factor<a class="anchor" aria-label="anchor" href="#arg-uphill-factor"></a></dt>
+<dd><p>Numeric &gt; 0. Multiplier controlling additional cost of uphill movement
+when <code>anisotropy = "terrain"</code>. Values &gt; 1 penalise uphill movement more strongly.</p></dd>
+
+
+<dt id="arg-downhill-factor">downhill_factor<a class="anchor" aria-label="anchor" href="#arg-downhill-factor"></a></dt>
+<dd><p>Numeric &gt; 0. Multiplier controlling ease of downhill movement
+when <code>anisotropy = "terrain"</code>. Values &gt; 1 make downhill travel easier.</p></dd>
+
+
 <dt id="arg-island-min-cells">island_min_cells<a class="anchor" aria-label="anchor" href="#arg-island-min-cells"></a></dt>
 <dd><p>Integer. Minimum patch size used in island removal.</p></dd>
 
 
 <dt id="arg-island-fill-iter">island_fill_iter<a class="anchor" aria-label="anchor" href="#arg-island-fill-iter"></a></dt>
 <dd><p>Integer. Maximum iterations for filling reassigned cells.</p></dd>
+
+
+<dt id="arg-geodesic-engine">geodesic_engine<a class="anchor" aria-label="anchor" href="#arg-geodesic-engine"></a></dt>
+<dd><p>Character. Geodesic allocation engine; one of
+<code>"classic"</code> or <code>"multisource"</code>.</p></dd>
+
+
+<dt id="arg-return-polygons">return_polygons<a class="anchor" aria-label="anchor" href="#arg-return-polygons"></a></dt>
+<dd><p>Logical. If <code>TRUE</code>, polygonise the cleaned allocation
+raster and attach point attributes. If <code>FALSE</code>, return allocation outputs only.</p></dd>
+
+
+<dt id="arg-prepared">prepared<a class="anchor" aria-label="anchor" href="#arg-prepared"></a></dt>
+<dd><p>Optional prepared geodesic context created by
+<code><a href="prepare_geodesic_context.html">prepare_geodesic_context()</a></code> for repeated compatible geodesic runs.</p></dd>
 
 
 <dt id="arg-verbose">verbose<a class="anchor" aria-label="anchor" href="#arg-verbose"></a></dt>

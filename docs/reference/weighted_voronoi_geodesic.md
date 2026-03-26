@@ -24,8 +24,14 @@ weighted_voronoi_geodesic(
   tobler_a = 3.5,
   tobler_b = 0.05,
   min_speed_kmh = 0.25,
+  anisotropy = c("none", "terrain"),
+  uphill_factor = 1,
+  downhill_factor = 1,
   island_min_cells = 5,
   island_fill_iter = 50,
+  geodesic_engine = c("classic", "multisource"),
+  return_polygons = TRUE,
+  prepared = NULL,
   verbose = TRUE
 )
 ```
@@ -103,6 +109,30 @@ weighted_voronoi_geodesic(
 
   Minimum allowed speed to avoid infinite costs.
 
+- anisotropy:
+
+  Character. Directional cost model for geodesic distance.
+
+  "none"
+
+  :   Standard isotropic geodesic distance (default).
+
+  "terrain"
+
+  :   Direction-dependent movement based on terrain slope (DEM
+      required).
+
+- uphill_factor:
+
+  Numeric \> 0. Multiplier controlling additional cost of uphill
+  movement when `anisotropy = "terrain"`. Values \> 1 penalise uphill
+  movement more strongly.
+
+- downhill_factor:
+
+  Numeric \> 0. Multiplier controlling ease of downhill movement when
+  `anisotropy = "terrain"`. Values \> 1 make downhill travel easier.
+
 - island_min_cells:
 
   Integer. Minimum patch size used in island removal.
@@ -110,6 +140,22 @@ weighted_voronoi_geodesic(
 - island_fill_iter:
 
   Integer. Maximum iterations for filling reassigned cells.
+
+- geodesic_engine:
+
+  Character. Geodesic allocation engine; one of `"classic"` or
+  `"multisource"`.
+
+- return_polygons:
+
+  Logical. If `TRUE`, polygonise the cleaned allocation raster and
+  attach point attributes. If `FALSE`, return allocation outputs only.
+
+- prepared:
+
+  Optional prepared geodesic context created by
+  [`prepare_geodesic_context()`](https://HarriRaven.github.io/weightedVoronoi/reference/prepare_geodesic_context.md)
+  for repeated compatible geodesic runs.
 
 - verbose:
 

@@ -12,8 +12,10 @@
 <link href="deps/font-awesome-6.5.2/css/all.min.css" rel="stylesheet">
 <link href="deps/font-awesome-6.5.2/css/v4-shims.min.css" rel="stylesheet">
 <script src="deps/headroom-0.11.0/headroom.min.js"></script><script src="deps/headroom-0.11.0/jQuery.headroom.min.js"></script><script src="deps/bootstrap-toc-1.0.1/bootstrap-toc.min.js"></script><script src="deps/clipboard.js-2.0.11/clipboard.min.js"></script><script src="deps/search-1.0.0/autocomplete.jquery.min.js"></script><script src="deps/search-1.0.0/fuse.min.js"></script><script src="deps/search-1.0.0/mark.min.js"></script><!-- pkgdown --><script src="pkgdown.js"></script><meta property="og:title" content="weightedVoronoi">
-<meta name="description" content="Tools for weighted spatial tessellation using Euclidean and geodesic distances within constrained polygons, with optional elevation-dependent resistance (Tobler hiking function) for terrain-aware allocation.">
-<meta property="og:description" content="Tools for weighted spatial tessellation using Euclidean and geodesic distances within constrained polygons, with optional elevation-dependent resistance (Tobler hiking function) for terrain-aware allocation.">
+<meta name="description" content="Tools for weighted spatial tessellation in constrained domains, including Euclidean and geodesic allocation, resistance surfaces, terrain anisotropy, scalable multisource geodesics, uncertainty-aware tessellations, and temporal tessellation workflows.
+">
+<meta property="og:description" content="Tools for weighted spatial tessellation in constrained domains, including Euclidean and geodesic allocation, resistance surfaces, terrain anisotropy, scalable multisource geodesics, uncertainty-aware tessellations, and temporal tessellation workflows.
+">
 </head>
 <body>
     <a href="#main" class="visually-hidden-focusable">Skip to contents</a>
@@ -41,6 +43,7 @@
 </li>
       </ul>
 <ul class="navbar-nav">
+<li class="nav-item"><a class="external-link nav-link" href="https://harriraven.shinyapps.io/weightedVoronoi-demo/">Demo</a></li>
 <li class="nav-item"><a class="external-link nav-link" href="https://github.com/HarriRaven/weightedVoronoi" aria-label="GitHub repository"><span class="fa fab fa-github"></span></a></li>
       </ul>
 </div>
@@ -53,7 +56,7 @@
 <div class="section level1">
 <div class="page-header"><h1 id="weightedvoronoi">weightedVoronoi<a class="anchor" aria-label="anchor" href="#weightedvoronoi"></a>
 </h1></div>
-<p>Tools for weighted spatial tessellation using Euclidean and geodesic distances within constrained polygons. Produces complete, connected partitions that respect complex boundaries and heterogeneous point weights.</p>
+<p><strong>weightedVoronoi</strong> generates weighted spatial partitions that respect boundaries, landscape structure, and heterogeneous point influence using Euclidean or geodesic distance.</p>
 <p>🌐 Website: <a href="https://HarriRaven.github.io/weightedVoronoi/" class="uri">https://HarriRaven.github.io/weightedVoronoi/</a></p>
 <p><img src="reference/figures/animation-euclidean.gif" alt="" width="100%"></p>
 <div class="section level2">
@@ -61,21 +64,53 @@
 </h2>
 <ol style="list-style-type: decimal">
 <li><p>Weighted Euclidean and geodesic tessellations inside arbitrary polygon domains</p></li>
-<li><p>Flexible weight models via weight_model and (optionally) weight_power</p></li>
-<li><p>Custom resistance surfaces via resistance_rast</p></li>
-<li><p>User-side barriers (raster or vector lines/polygons) via add_barriers()</p></li>
-<li><p>Resistance composition from multiple rasters via compose_resistance()</p></li>
+<li><p>Flexible weight semantics via weight_model and weight_power</p></li>
+<li><p>Custom resistance surfaces and barriers via <code><a href="reference/compose_resistance.html">compose_resistance()</a></code> and <code><a href="reference/add_barriers.html">add_barriers()</a></code></p></li>
+<li><p>Terrain-informed geodesic allocation via DEM/Tobler resistance</p></li>
+<li><p>Terrain-anisotropic geodesic tessellations</p></li>
+<li><p>Scalable multisource geodesic allocation for additive isotropic geodesics</p></li>
+<li><p>Uncertainty-aware tessellations with probability and entropy outputs</p></li>
+<li><p>Temporal tessellation stacks with change and persistence maps</p></li>
 </ol>
+</div>
+<div class="section level2">
+<h2 id="interactive-demo">Interactive demo<a class="anchor" aria-label="anchor" href="#interactive-demo"></a>
+</h2>
+<p>Explore weighted Voronoi tessellations interactively:</p>
+<p>👉 <a href="https://harriraven.shinyapps.io/weightedVoronoi-demo/" class="external-link uri">https://harriraven.shinyapps.io/weightedVoronoi-demo/</a></p>
+<ul>
+<li>Compare Euclidean vs geodesic allocation</li>
+<li>Add resistance surfaces and terrain effects</li>
+<li>Visualise how domain geometry constrains influence</li>
+</ul>
+</div>
+<div class="section level2">
+<h2 id="choosing-a-workflow">Choosing a workflow<a class="anchor" aria-label="anchor" href="#choosing-a-workflow"></a>
+</h2>
+<p>weightedVoronoi supports several spatial tessellation approaches depending on your assumptions about distance, landscape structure, and analysis goals.</p>
+<div class="section level3">
+<h3 id="quick-guide">Quick guide:<a class="anchor" aria-label="anchor" href="#quick-guide"></a>
+</h3>
+<p>Straight-line influence (fastest) → <code>distance = "euclidean"</code></p>
+<p>Constrained by domain geometry (no crossing gaps/barriers) → <code>distance = "geodesic"</code></p>
+<p>Landscape affects movement (e.g. terrain, land cover) → provide <code>resistance_rast</code> or <code>dem_rast</code></p>
+<p>Uphill vs downhill matters (directional movement) → <code>anisotropy = "terrain"</code></p>
+<p>Repeated runs (uncertainty or time series) → use <code>prepare_geodesic_context() + geodesic_engine = "multisource"</code></p>
+<p>Uncertain weights → <code><a href="reference/weighted_voronoi_uncertainty.html">weighted_voronoi_uncertainty()</a></code></p>
+<p>Time series of tessellations → <code><a href="reference/weighted_voronoi_time.html">weighted_voronoi_time()</a></code></p>
+<p>For a more detailed guide, see the vignette.</p>
+</div>
 </div>
 <div class="section level2">
 <h2 id="installation">Installation<a class="anchor" aria-label="anchor" href="#installation"></a>
 </h2>
-<div class="sourceCode" id="cb1"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb1-1"><a href="#cb1-1" tabindex="-1"></a><span class="fu">install.packages</span>(“remotes”)</span>
-<span id="cb1-2"><a href="#cb1-2" tabindex="-1"></a>remotes<span class="sc">::</span><span class="fu">install_github</span>(“HarriRaven<span class="sc">/</span>weightedVoronoi”)</span>
-<span id="cb1-3"><a href="#cb1-3" tabindex="-1"></a></span>
-<span id="cb1-4"><a href="#cb1-4" tabindex="-1"></a><span class="fu">library</span>(sf)</span>
-<span id="cb1-5"><a href="#cb1-5" tabindex="-1"></a><span class="fu">library</span>(terra)</span>
-<span id="cb1-6"><a href="#cb1-6" tabindex="-1"></a><span class="fu">library</span>(weightedVoronoi)</span></code></pre></div>
+<div class="sourceCode" id="cb1"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/utils/install.packages.html" class="external-link">install.packages</a></span><span class="op">(</span><span class="st">"remotes"</span><span class="op">)</span></span>
+<span><span class="fu">remotes</span><span class="fu">::</span><span class="fu"><a href="https://remotes.r-lib.org/reference/install_github.html" class="external-link">install_github</a></span><span class="op">(</span><span class="st">"HarriRaven/weightedVoronoi"</span><span class="op">)</span></span>
+<span></span>
+<span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://r-spatial.github.io/sf/" class="external-link">sf</a></span><span class="op">)</span></span>
+<span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://rspatial.org/" class="external-link">terra</a></span><span class="op">)</span></span>
+<span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://HarriRaven.github.io/weightedVoronoi/">weightedVoronoi</a></span><span class="op">)</span></span></code></pre></div>
 <div class="section level3">
 <h3 id="use-a-projected-crs-units-in-metres">Use a projected CRS (units in metres)<a class="anchor" aria-label="anchor" href="#use-a-projected-crs-units-in-metres"></a>
 </h3>
@@ -145,13 +180,50 @@
 <span>  close_iters <span class="op">=</span> <span class="fl">1</span>,</span>
 <span>  verbose <span class="op">=</span> <span class="cn">FALSE</span></span>
 <span><span class="op">)</span></span></code></pre></div>
+<p>The package also supports uncertainty-aware and temporal workflows; see the vignette for worked examples.</p>
+</div>
+<div class="section level4">
+<h4 id="fast-workflows-with-prepared-context">Fast workflows with prepared context<a class="anchor" aria-label="anchor" href="#fast-workflows-with-prepared-context"></a>
+</h4>
+<div class="sourceCode" id="cb7"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">ctx</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/prepare_geodesic_context.html">prepare_geodesic_context</a></span><span class="op">(</span><span class="va">...</span><span class="op">)</span></span>
+<span></span>
+<span><span class="fu"><a href="reference/weighted_voronoi_domain.html">weighted_voronoi_domain</a></span><span class="op">(</span><span class="va">...</span>, prepared <span class="op">=</span> <span class="va">ctx</span><span class="op">)</span></span></code></pre></div>
+<p>Fast reuse currently supported in:</p>
+<div class="sourceCode" id="cb8"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="fu"><a href="reference/weighted_voronoi_domain.html">weighted_voronoi_domain</a></span><span class="op">(</span><span class="va">...</span>, prepared <span class="op">=</span> <span class="va">ctx</span><span class="op">)</span></span></code></pre></div>
+<p>Temporal and uncertainty workflows automatically reuse internal preparation and do not currently accept external prepared contexts</p>
+<div class="section level5">
+<h5 id="reusing-geodetic-contexts">Reusing Geodetic Contexts<a class="anchor" aria-label="anchor" href="#reusing-geodetic-contexts"></a>
+</h5>
+<div class="sourceCode" id="cb9"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">ctx</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/prepare_geodesic_context.html">prepare_geodesic_context</a></span><span class="op">(</span></span>
+<span>  boundary_sf <span class="op">=</span> <span class="va">boundary_sf</span>,</span>
+<span>  res <span class="op">=</span> <span class="fl">20</span>,</span>
+<span>  geodesic_engine <span class="op">=</span> <span class="st">"multisource"</span></span>
+<span><span class="op">)</span></span>
+<span></span>
+<span><span class="co"># Now reuse for many runs (fast)</span></span>
+<span><span class="va">out1</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/weighted_voronoi_geodesic.html">weighted_voronoi_geodesic</a></span><span class="op">(</span></span>
+<span>  points_sf <span class="op">=</span> <span class="va">points_t1</span>,</span>
+<span>  weight_col <span class="op">=</span> <span class="st">"population"</span>,</span>
+<span>  prepared <span class="op">=</span> <span class="va">ctx</span></span>
+<span><span class="op">)</span></span>
+<span></span>
+<span><span class="va">out2</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/weighted_voronoi_geodesic.html">weighted_voronoi_geodesic</a></span><span class="op">(</span></span>
+<span>  points_sf <span class="op">=</span> <span class="va">points_t2</span>,</span>
+<span>  weight_col <span class="op">=</span> <span class="st">"population"</span>,</span>
+<span>  prepared <span class="op">=</span> <span class="va">ctx</span></span>
+<span><span class="op">)</span></span></code></pre></div>
+<p>This avoids rebuilding the geodesic graph and can substantially speed up repeated runs (e.g. temporal or uncertainty workflows).</p>
+</div>
 </div>
 </div>
 <div class="section level3">
 <h3 id="custom-resistance-and-barriers">Custom Resistance and Barriers<a class="anchor" aria-label="anchor" href="#custom-resistance-and-barriers"></a>
 </h3>
 <p>Build a resistance surface on the same grid, optionally combine layers, then apply barriers before running a geodesic tessellation.</p>
-<div class="sourceCode" id="cb7"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb10"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="co"># Use the Euclidean allocation grid as a convenient template</span></span>
 <span><span class="va">template</span> <span class="op">&lt;-</span> <span class="va">out_euc</span><span class="op">$</span><span class="va">allocation</span></span>
 <span></span>
@@ -188,7 +260,10 @@
 <div class="section level4">
 <h4 id="terrain-aware-tessellations">Terrain-aware tessellations<a class="anchor" aria-label="anchor" href="#terrain-aware-tessellations"></a>
 </h4>
-<p><code>weightedVoronoi</code> supports geodesic tessellations that incorporate environmental resistance. When supplied with an elevation raster, distances are modified using Tobler’s hiking function, allowing topography to influence spatial allocation.</p>
+<p>Environmental resistance and terrain can strongly influence spatial allocation.</p>
+<p>The example below shows how terrain anisotropy (direction-dependent movement cost) can substantially alter geodesic tessellations compared to isotropic resistance.</p>
+<p>Unlike isotropic resistance, terrain-anisotropic geodesic tessellations allow uphill and downhill movement to differ, producing direction-dependent allocation patterns.</p>
+<p><img src="reference/figures/fig-anisotropy.png" alt="" width="100%"></p>
 <div class="section level5">
 <h5 id="flat-domain-no-resistance">Flat domain (no resistance)<a class="anchor" aria-label="anchor" href="#flat-domain-no-resistance"></a>
 </h5>
@@ -204,10 +279,10 @@
 <div class="section level3">
 <h3 id="inspect-outputs">Inspect outputs<a class="anchor" aria-label="anchor" href="#inspect-outputs"></a>
 </h3>
-<div class="sourceCode" id="cb8"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/base/names.html" class="external-link">names</a></span><span class="op">(</span><span class="va">out_euc</span><span class="op">)</span></span>
+<div class="sourceCode" id="cb11"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="fu"><a href="https://rspatial.github.io/terra/reference/names.html" class="external-link">names</a></span><span class="op">(</span><span class="va">out_euc</span><span class="op">)</span></span>
 <span></span>
-<span><span class="fu"><a href="https://rdrr.io/r/utils/head.html" class="external-link">head</a></span><span class="op">(</span><span class="va">out_euc</span><span class="op">$</span><span class="va">summary</span><span class="op">)</span></span>
+<span><span class="fu"><a href="https://rspatial.github.io/terra/reference/headtail.html" class="external-link">head</a></span><span class="op">(</span><span class="va">out_euc</span><span class="op">$</span><span class="va">summary</span><span class="op">)</span></span>
 <span></span>
 <span><span class="va">out_euc</span><span class="op">$</span><span class="va">diagnostics</span></span></code></pre></div>
 </div>
@@ -236,7 +311,7 @@
 <h2 id="citation">Citation<a class="anchor" aria-label="anchor" href="#citation"></a>
 </h2>
 <p>If you use weightedVoronoi, please cite the associated software note:</p>
-<div class="sourceCode" id="cb9"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb12"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/utils/bibentry.html" class="external-link">bibentry</a></span><span class="op">(</span></span>
 <span>  bibtype <span class="op">=</span> <span class="st">"Manual"</span>,</span>
 <span>  title <span class="op">=</span> <span class="st">"weightedVoronoi: Weighted Spatial Tessellations Using Euclidean and Geodesic Distances"</span>,</span>
@@ -256,6 +331,7 @@
 <ul class="list-unstyled">
 <li><a href="https://github.com/HarriRaven/weightedVoronoi/" class="external-link">Browse source code</a></li>
 <li><a href="https://github.com/HarriRaven/weightedVoronoi/issues" class="external-link">Report a bug</a></li>
+<li><a href="https://harriraven.shinyapps.io/weightedVoronoi-demo/" class="external-link">Live demo app</a></li>
 <li><a href="articles/weighted-voronoi.html">Get started (vignette)</a></li>
 <li><a href="https://github.com/HarriRaven/weightedVoronoi" class="external-link">Source code</a></li>
 </ul>

@@ -34,6 +34,16 @@ Euclidean or geodesic distance.
 
 8)  Temporal tessellation stacks with change and persistence maps
 
+## Interactive demo
+
+Explore weighted Voronoi tessellations interactively:
+
+👉 <https://harriraven.shinyapps.io/weightedVoronoi-demo/>
+
+- Compare Euclidean vs geodesic allocation
+- Add resistance surfaces and terrain effects
+- Visualise how domain geometry constrains influence
+
 ## Choosing a workflow
 
 weightedVoronoi supports several spatial tessellation approaches
